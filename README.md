@@ -1,6 +1,6 @@
-# Injentro Server
+# ModenixOS Server
 
-Express + Prisma backend for the full-stack starter. It handles authentication, user management, file uploads, email OTP flows, and role-based access control.
+Express + Prisma backend for ModenixOS — a multi-tenant fashion brand SaaS. Handles authentication, store management, catalog, orders, analytics, and platform admin APIs.
 
 ## Tech Stack
 
