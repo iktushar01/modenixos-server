@@ -65,6 +65,9 @@ const updateStore = async (
   let logo = payload.logo;
   let banner = payload.banner;
 
+  if (payload.logo === null) logo = null;
+  if (payload.banner === null) banner = null;
+
   if (logoBuffer && logoName) {
     const result = await uploadFileToCloudinary(logoBuffer, logoName);
     logo = result.secure_url;

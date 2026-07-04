@@ -6,6 +6,18 @@ const slugSchema = z
   .max(50)
   .regex(/^[a-z0-9-]+$/, "Slug must be lowercase letters, numbers, and hyphens only");
 
+const themeField = z.preprocess((val) => {
+  if (val === "" || val === null || val === undefined) return undefined;
+  if (typeof val === "string") {
+    try {
+      return JSON.parse(val);
+    } catch {
+      return undefined;
+    }
+  }
+  return val;
+}, z.record(z.string(), z.unknown()).optional());
+
 export const createStoreZodSchema = z.object({
   brandName: z.string().min(2).max(100).trim(),
   slug: slugSchema,
@@ -20,7 +32,9 @@ export const updateStoreZodSchema = z.object({
   country: z.string().min(2).max(100).trim().optional(),
   currency: z.string().length(3).optional(),
   description: z.string().max(1000).optional(),
-  isPublished: z.boolean().optional(),
-  theme: z.record(z.string(), z.unknown()).optional(),
-  shipping: z.record(z.string(), z.unknown()).optional(),
+  isPublished: z.coerce.boolean().optional(),
+  theme: themeField,
+  shipping: themeField,
+  logo: z.preprocess((val) => (val === "" ? null : val), z.string().nullable().optional()),
+  banner: z.preprocess((val) => (val === "" ? null : val), z.string().nullable().optional()),
 });
