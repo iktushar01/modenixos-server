@@ -4,6 +4,7 @@ import { PublicStoreRoute } from "../module/store/store.route";
 import { ProductService } from "../module/product/product.service";
 import { StoreService } from "../module/store/store.service";
 import { CollectionService } from "../module/collection/collection.service";
+import { CategoryService } from "../module/category/category.service";
 import { ReviewService } from "../module/review/review.service";
 import { OrderController } from "../module/order/order.controller";
 import { ReviewController } from "../module/review/review.controller";
@@ -19,6 +20,21 @@ import { Request, Response } from "express";
 const router = Router();
 
 router.use("/stores", PublicStoreRoute);
+
+router.get(
+  "/stores/:slug/categories",
+  catchAsync(async (req: Request, res: Response) => {
+    const store = await StoreService.getPublicStoreBySlug(req.params.slug as string);
+    const result = await CategoryService.getCategories(store.id, req.query as Record<string, unknown>);
+    sendResponse(res, {
+      statusCode: StatusCodes.OK,
+      success: true,
+      message: "Categories retrieved",
+      data: result.data,
+      meta: result.meta,
+    });
+  }),
+);
 
 router.get(
   "/stores/:slug/collections",

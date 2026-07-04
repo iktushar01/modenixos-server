@@ -1,9 +1,14 @@
 import z from "zod";
 
+const optionalImageUrl = z.preprocess(
+  (val) => (val === "" || val === null || val === undefined ? null : val),
+  z.union([z.string().url(), z.null()]).optional(),
+);
+
 export const createCategoryZodSchema = z.object({
   name: z.string().min(2).max(100).trim(),
   slug: z.string().min(2).max(100).regex(/^[a-z0-9-]+$/).optional(),
-  image: z.string().url().optional(),
+  image: optionalImageUrl,
 });
 
 export const updateCategoryZodSchema = createCategoryZodSchema.partial();
