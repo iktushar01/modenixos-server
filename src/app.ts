@@ -2,7 +2,6 @@ import express, { Application, Request, Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
 import { toNodeHandler } from "better-auth/node";
 import path from "node:path";
 import { envVars } from "./config/env";
@@ -10,6 +9,7 @@ import { IndexRoute } from "./app/routes/index";
 import { HealthRoute } from "./app/routes/health.route";
 import { globalErrorhandler } from "./app/middleware/globalErrorhandler";
 import { notFound } from "./app/middleware/notFound";
+import { betterAuthLimiter } from "./app/middleware/authRateLimiter";
 import { auth } from "./app/lib/auth";
 
 const app: Application = express();
@@ -24,16 +24,7 @@ const corsOptions = {
     allowedHeaders: ["Content-Type", "Authorization"],
 };
 
-const authRateLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: {
-        success: false,
-        message: "Too many auth requests. Please try again later.",
-    },
-});
+const authRateLimiter = betterAuthLimiter;
 
 app.use(helmet());
 app.use(cors(corsOptions));
@@ -49,7 +40,6 @@ app.get("/", (_req: Request, res: Response) => {
 });
 
 app.use("/health", HealthRoute);
-app.use("/api/v1/auth", authRateLimiter);
 app.use("/api/v1", IndexRoute);
 
 app.use(globalErrorhandler);

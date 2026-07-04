@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { Role } from "../../lib/prisma-exports";
 import { checkAuth } from "../../middleware/checkAuth";
+import { credentialAuthLimiter } from "../../middleware/authRateLimiter";
 import { validateRequest } from "../../middleware/validateRequest";
 import { memoryUpload } from "../../../config/multer.config";
 import { AuthController } from "./auth.controller";
@@ -22,6 +23,7 @@ const router = Router();
 
 router.post(
     "/register",
+    credentialAuthLimiter,
     memoryUpload.single("image"),
     validateRequest(registerClientZodSchema),
     AuthController.registerClient,
@@ -29,6 +31,7 @@ router.post(
 
 router.post(
     "/login",
+    credentialAuthLimiter,
     validateRequest(loginZodSchema),
     AuthController.loginUser,
 );
@@ -37,18 +40,21 @@ router.post("/refresh-token", AuthController.getNewTokens);
 
 router.post(
     "/verify-email",
+    credentialAuthLimiter,
     validateRequest(verifyEmailZodSchema),
     AuthController.verifyEmail,
 );
 
 router.post(
     "/forget-password",
+    credentialAuthLimiter,
     validateRequest(forgetPasswordZodSchema),
     AuthController.forgetPassword,
 );
 
 router.post(
     "/reset-password",
+    credentialAuthLimiter,
     validateRequest(resetPasswordZodSchema),
     AuthController.resetPassword,
 );
