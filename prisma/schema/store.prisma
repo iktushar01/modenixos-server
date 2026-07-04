@@ -1,0 +1,31 @@
+model Store {
+  id          String    @id @default(uuid())
+  ownerId     String    @unique
+  brandName   String
+  slug        String    @unique
+  logo        String?
+  banner      String?
+  country     String
+  currency    String    @default("USD")
+  description String?
+  isPublished Boolean   @default(false)
+  isSuspended Boolean   @default(false)
+  plan        StorePlan @default(FREE)
+  theme       Json?
+  shipping    Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  categories  Category[]
+  collections Collection[]
+  products    Product[]
+  orders      Order[]
+  customers   Customer[]
+  reviews     Review[]
+  coupons     Coupon[]
+
+  @@index([slug])
+  @@index([isPublished])
+  @@map("stores")
+}

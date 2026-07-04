@@ -1,0 +1,65 @@
+model Customer {
+  id          String   @id @default(uuid())
+  storeId     String
+  email       String
+  name        String
+  phone       String?
+  addresses   Json     @default("[]")
+  orderCount  Int      @default(0)
+  totalSpent  Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  store   Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  reviews Review[]
+
+  @@unique([storeId, email])
+  @@index([storeId])
+  @@map("customers")
+}
+
+model Review {
+  id         String       @id @default(uuid())
+  storeId    String
+  productId  String
+  customerId String?
+  guestName  String?
+  guestEmail String?
+  rating     Int
+  comment    String?
+  images     String[]
+  status     ReviewStatus @default(PENDING)
+  reply      String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product  Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([storeId])
+  @@index([productId])
+  @@index([status])
+  @@map("reviews")
+}
+
+model Coupon {
+  id          String     @id @default(uuid())
+  storeId     String
+  code        String
+  type        CouponType
+  value       Float
+  minOrder    Float      @default(0)
+  usageLimit  Int?
+  usedCount   Int        @default(0)
+  expiresAt   DateTime?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, code])
+  @@index([storeId])
+  @@map("coupons")
+}

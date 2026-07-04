@@ -1,0 +1,65 @@
+model Category {
+  id        String    @id @default(uuid())
+  storeId   String
+  name      String
+  slug      String
+  image     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([storeId, slug])
+  @@index([storeId])
+  @@map("categories")
+}
+
+model Collection {
+  id          String    @id @default(uuid())
+  storeId     String
+  name        String
+  slug        String
+  image       String?
+  isFeatured  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([storeId, slug])
+  @@index([storeId])
+  @@map("collections")
+}
+
+model Product {
+  id             String        @id @default(uuid())
+  storeId        String
+  name           String
+  description    String?
+  price          Float
+  discountPrice  Float?
+  categoryId     String?
+  collectionId   String?
+  stock          Int           @default(0)
+  sku            String?
+  images         String[]
+  sizes          String[]
+  colors         String[]
+  tags           String[]
+  status         ProductStatus @default(DRAFT)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  store      Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category   Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  collection Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  reviews    Review[]
+
+  @@index([storeId])
+  @@index([categoryId])
+  @@index([collectionId])
+  @@index([status])
+  @@map("products")
+}

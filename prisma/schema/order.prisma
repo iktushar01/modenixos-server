@@ -1,0 +1,27 @@
+model Order {
+  id              String      @id @default(uuid())
+  storeId         String
+  orderNumber     String
+  status          OrderStatus @default(PENDING)
+  paymentMethod   String      @default("COD")
+  items           Json
+  customerName    String
+  customerEmail   String
+  customerPhone   String?
+  shippingAddress Json
+  subtotal        Float
+  shipping        Float       @default(0)
+  discount        Float       @default(0)
+  total           Float
+  couponCode      String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, orderNumber])
+  @@index([storeId])
+  @@index([status])
+  @@index([customerEmail])
+  @@map("orders")
+}

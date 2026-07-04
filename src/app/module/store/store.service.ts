@@ -1,0 +1,110 @@
+import { StatusCodes } from "http-status-codes";
+import AppError from "../../errorHelpers/AppError";
+import { prisma } from "../../lib/prisma";
+import { uploadFileToCloudinary } from "../../../config/cloudinary.config";
+import { ICreateStorePayload, IUpdateStorePayload } from "./store.interface";
+
+const assertSlugAvailable = async (slug: string, excludeId?: string) => {
+  const existing = await prisma.store.findFirst({
+    where: { slug, ...(excludeId ? { NOT: { id: excludeId } } : {}) },
+  });
+  if (existing) {
+    throw new AppError(StatusCodes.CONFLICT, "This store slug is already taken");
+  }
+};
+
+const createStore = async (ownerId: string, payload: ICreateStorePayload) => {
+  const existing = await prisma.store.findUnique({ where: { ownerId } });
+  if (existing) {
+    throw new AppError(StatusCodes.CONFLICT, "You already have a store");
+  }
+
+  await assertSlugAvailable(payload.slug);
+
+  return prisma.store.create({
+      data: {
+        ownerId,
+        brandName: payload.brandName,
+        slug: payload.slug,
+        country: payload.country,
+        currency: payload.currency ?? "USD",
+        description: payload.description ?? null,
+      },
+  });
+};
+
+const getMyStore = async (ownerId: string) => {
+  const store = await prisma.store.findUnique({ where: { ownerId } });
+  if (!store) {
+    throw new AppError(StatusCodes.NOT_FOUND, "Store not found");
+  }
+  return store;
+};
+
+const updateStore = async (
+  storeId: string,
+  ownerId: string,
+  payload: IUpdateStorePayload,
+  logoBuffer?: Buffer,
+  logoName?: string,
+  bannerBuffer?: Buffer,
+  bannerName?: string,
+) => {
+  const store = await prisma.store.findFirst({
+    where: { id: storeId, ownerId },
+  });
+
+  if (!store) {
+    throw new AppError(StatusCodes.NOT_FOUND, "Store not found");
+  }
+
+  if (payload.slug && payload.slug !== store.slug) {
+    await assertSlugAvailable(payload.slug, storeId);
+  }
+
+  let logo = payload.logo;
+  let banner = payload.banner;
+
+  if (logoBuffer && logoName) {
+    const result = await uploadFileToCloudinary(logoBuffer, logoName);
+    logo = result.secure_url;
+  }
+
+  if (bannerBuffer && bannerName) {
+    const result = await uploadFileToCloudinary(bannerBuffer, bannerName);
+    banner = result.secure_url;
+  }
+
+  return prisma.store.update({
+    where: { id: storeId },
+    data: {
+      ...(payload.brandName !== undefined ? { brandName: payload.brandName } : {}),
+      ...(payload.slug !== undefined ? { slug: payload.slug } : {}),
+      ...(payload.country !== undefined ? { country: payload.country } : {}),
+      ...(payload.currency !== undefined ? { currency: payload.currency } : {}),
+      ...(payload.description !== undefined ? { description: payload.description } : {}),
+      ...(payload.isPublished !== undefined ? { isPublished: payload.isPublished } : {}),
+      ...(payload.theme !== undefined ? { theme: payload.theme as object } : {}),
+      ...(payload.shipping !== undefined ? { shipping: payload.shipping as object } : {}),
+      ...(logo !== undefined ? { logo } : {}),
+      ...(banner !== undefined ? { banner } : {}),
+    },
+  });
+};
+
+const getPublicStoreBySlug = async (slug: string) => {
+  const store = await prisma.store.findUnique({ where: { slug } });
+
+  if (!store || !store.isPublished || store.isSuspended) {
+    throw new AppError(StatusCodes.NOT_FOUND, "Store not found");
+  }
+
+  return store;
+};
+
+export const StoreService = {
+  createStore,
+  getMyStore,
+  updateStore,
+  getPublicStoreBySlug,
+};
