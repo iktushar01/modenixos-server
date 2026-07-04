@@ -52,4 +52,16 @@ const deleteReview = async (storeId: string, id: string) => {
   await prisma.review.delete({ where: { id } });
 };
 
-export const ReviewService = { createPublicReview, getReviews, updateReview, deleteReview };
+const getPublicReviews = async (storeId: string, query: Record<string, unknown>) => {
+  return new QueryBuilder(prisma.review as any, query, {
+    filterableFields: ["productId"],
+  })
+    .where({ storeId, status: ReviewStatus.APPROVED })
+    .filter()
+    .sort()
+    .paginate()
+    .include({ product: { select: { id: true, name: true, images: true } } })
+    .execute();
+};
+
+export const ReviewService = { createPublicReview, getReviews, getPublicReviews, updateReview, deleteReview };
