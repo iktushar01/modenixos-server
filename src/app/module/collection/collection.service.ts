@@ -48,22 +48,30 @@ const getCollection = async (storeId: string, id: string) => {
 const updateCollection = async (
   storeId: string,
   id: string,
-  payload: { name?: string; slug?: string; image?: string; isFeatured?: boolean },
+  payload: { name?: string; slug?: string; image?: string | null; isFeatured?: boolean },
   imageBuffer?: Buffer,
   imageName?: string,
 ) => {
   await getCollection(storeId, id);
-  let image = payload.image;
+  const existing = await prisma.collection.findUnique({ where: { id } });
+  let image: string | null = existing?.image ?? null;
+
+  if (payload.image !== undefined) {
+    image = payload.image === null ? null : payload.image;
+  }
   if (imageBuffer && imageName) {
     const result = await uploadFileToCloudinary(imageBuffer, imageName);
     image = result.secure_url;
   }
+
   return prisma.collection.update({
     where: { id },
     data: {
-      ...payload,
+      ...(payload.name !== undefined ? { name: payload.name } : {}),
+      ...(payload.slug !== undefined ? { slug: payload.slug } : {}),
       ...(payload.name && !payload.slug ? { slug: slugify(payload.name) } : {}),
-      ...(image !== undefined ? { image } : {}),
+      ...(payload.isFeatured !== undefined ? { isFeatured: payload.isFeatured } : {}),
+      ...(payload.image !== undefined || imageBuffer ? { image } : {}),
     },
   });
 };
