@@ -32,20 +32,62 @@ const parseDetailsField = (value: unknown) => {
   return null;
 };
 
+const parseColorImageFileMap = (value: unknown): Record<string, number> => {
+  if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, number>;
+      }
+    } catch {
+      return {};
+    }
+  }
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, number>;
+  }
+  return {};
+};
+
+const applyColorImageFileMap = (
+  details: unknown,
+  uploadedUrls: string[],
+  fileMap: Record<string, number>,
+) => {
+  if (!fileMap || Object.keys(fileMap).length === 0) return details;
+  const base =
+    details && typeof details === "object" && !Array.isArray(details)
+      ? { ...(details as Record<string, unknown>) }
+      : {};
+  const colorImages = {
+    ...(((base.colorImages as Record<string, string>) ?? {}) as Record<string, string>),
+  };
+  for (const [color, idx] of Object.entries(fileMap)) {
+    const url = uploadedUrls[idx];
+    if (url) colorImages[color] = url;
+  }
+  base.colorImages = colorImages;
+  return base;
+};
+
 const createProduct = async (
   storeId: string,
   payload: Record<string, unknown>,
   imageFiles?: Express.Multer.File[],
 ) => {
   const images = [...parseArrayField(payload.images)];
+  const uploadedNew: string[] = [];
   if (imageFiles?.length) {
     for (const file of imageFiles) {
       const result = await uploadFileToCloudinary(file.buffer, file.originalname);
+      uploadedNew.push(result.secure_url);
       images.push(result.secure_url);
     }
   }
 
-  const details = parseDetailsField(payload.details);
+  const fileMap = parseColorImageFileMap(payload.colorImageFileMap);
+  let details = parseDetailsField(payload.details);
+  details = applyColorImageFileMap(details, uploadedNew, fileMap);
 
   return prisma.product.create({
     data: {
@@ -101,15 +143,23 @@ const updateProduct = async (
   await getProduct(storeId, id);
   const existing = await prisma.product.findUnique({ where: { id } });
   const images = payload.images !== undefined ? parseArrayField(payload.images) : existing?.images ?? [];
+  const uploadedNew: string[] = [];
   if (imageFiles?.length) {
     for (const file of imageFiles) {
       const result = await uploadFileToCloudinary(file.buffer, file.originalname);
+      uploadedNew.push(result.secure_url);
       images.push(result.secure_url);
     }
   }
 
-  const details =
+  const fileMap = parseColorImageFileMap(payload.colorImageFileMap);
+  let details =
     payload.details !== undefined ? parseDetailsField(payload.details) : undefined;
+  if (details !== undefined) {
+    details = applyColorImageFileMap(details, uploadedNew, fileMap);
+  } else if (Object.keys(fileMap).length > 0) {
+    details = applyColorImageFileMap(existing?.details ?? {}, uploadedNew, fileMap);
+  }
 
   return prisma.product.update({
     where: { id },

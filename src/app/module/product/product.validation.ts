@@ -78,6 +78,7 @@ export const createProductZodSchema = z.object({
   tags: formArray.optional(),
   details: formDetails,
   status: z.nativeEnum(ProductStatus).optional(),
+  colorImageFileMap: z.string().optional(),
 });
 
 export const updateProductZodSchema = createProductZodSchema.partial();
