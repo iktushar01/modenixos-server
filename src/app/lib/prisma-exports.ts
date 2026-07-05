@@ -29,3 +29,9 @@ export type CouponType = (typeof CouponType)[keyof typeof CouponType];
 export const ReviewStatus = prismaModule.ReviewStatus;
 export type ReviewStatus = (typeof ReviewStatus)[keyof typeof ReviewStatus];
 
+export const StoreMemberRole = prismaModule.StoreMemberRole;
+export type StoreMemberRole = (typeof StoreMemberRole)[keyof typeof StoreMemberRole];
+
+export const StoreInvitationStatus = prismaModule.StoreInvitationStatus;
+export type StoreInvitationStatus = (typeof StoreInvitationStatus)[keyof typeof StoreInvitationStatus];
+

@@ -21,6 +21,8 @@ model User {
   client              Client?
   sessions            Session[]
   store               Store?
+  storeMemberships    StoreMember[]
+  storeInvitationsSent StoreInvitation[] @relation("StoreInvitationsSent")
 
   @@map("user")
 }

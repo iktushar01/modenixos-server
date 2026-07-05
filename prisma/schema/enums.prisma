@@ -48,3 +48,16 @@ enum ReviewStatus {
   APPROVED
   REJECTED
 }
+
+enum StoreMemberRole {
+  ADMIN
+  STAFF
+  VIEWER
+}
+
+enum StoreInvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}

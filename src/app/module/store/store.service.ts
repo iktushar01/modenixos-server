@@ -3,6 +3,7 @@ import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
 import { uploadFileToCloudinary } from "../../../config/cloudinary.config";
 import { ICreateStorePayload, IUpdateStorePayload } from "./store.interface";
+import { resolveUserStoreAccess } from "../../utils/storeAccess";
 
 const assertSlugAvailable = async (slug: string, excludeId?: string) => {
   const existing = await prisma.store.findFirst({
@@ -33,12 +34,18 @@ const createStore = async (ownerId: string, payload: ICreateStorePayload) => {
   });
 };
 
-const getMyStore = async (ownerId: string) => {
-  const store = await prisma.store.findUnique({ where: { ownerId } });
+const getMyStore = async (userId: string) => {
+  const access = await resolveUserStoreAccess(userId);
+  if (!access) {
+    throw new AppError(StatusCodes.NOT_FOUND, "Store not found");
+  }
+
+  const store = await prisma.store.findUnique({ where: { id: access.storeId } });
   if (!store) {
     throw new AppError(StatusCodes.NOT_FOUND, "Store not found");
   }
-  return store;
+
+  return { ...store, accessRole: access.role };
 };
 
 const updateStore = async (

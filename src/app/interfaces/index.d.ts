@@ -9,6 +9,7 @@ declare global {
         email: string;
       } | null;
       storeId?: string;
+      storeRole?: "OWNER" | "ADMIN" | "STAFF" | "VIEWER";
       storefrontCustomerId?: string;
       storefrontCustomerStoreId?: string;
     }

@@ -25,6 +25,8 @@ model Store {
   reviews        Review[]
   coupons        Coupon[]
   wishlistItems  WishlistItem[]
+  members        StoreMember[]
+  invitations    StoreInvitation[]
 
   @@index([slug])
   @@index([isPublished])

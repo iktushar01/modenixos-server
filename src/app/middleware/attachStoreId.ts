@@ -1,8 +1,8 @@
 import { NextFunction, Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import AppError from "../errorHelpers/AppError";
-import { prisma } from "../lib/prisma";
 import { Role } from "../lib/prisma-exports";
+import { resolveUserStoreAccess } from "../utils/storeAccess";
 
 export const attachStoreId = async (
   req: Request,
@@ -18,20 +18,18 @@ export const attachStoreId = async (
       return next();
     }
 
-    const store = await prisma.store.findUnique({
-      where: { ownerId: req.user.userId },
-      select: { id: true, isSuspended: true },
-    });
+    const access = await resolveUserStoreAccess(req.user.userId);
 
-    if (!store) {
+    if (!access) {
       throw new AppError(StatusCodes.NOT_FOUND, "Store not found. Create a brand first.");
     }
 
-    if (store.isSuspended) {
+    if (access.isSuspended) {
       throw new AppError(StatusCodes.FORBIDDEN, "Your store has been suspended.");
     }
 
-    req.storeId = store.id;
+    req.storeId = access.storeId;
+    req.storeRole = access.role;
     next();
   } catch (error) {
     next(error);

@@ -1,0 +1,36 @@
+model StoreMember {
+  id        String          @id @default(uuid())
+  storeId   String
+  userId    String
+  role      StoreMemberRole @default(STAFF)
+  invitedBy String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, userId])
+  @@index([userId])
+  @@map("store_members")
+}
+
+model StoreInvitation {
+  id        String                @id @default(uuid())
+  storeId   String
+  email     String
+  role      StoreMemberRole
+  token     String                @unique @default(uuid())
+  status    StoreInvitationStatus @default(PENDING)
+  invitedBy String
+  expiresAt DateTime
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  store   Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  inviter User  @relation("StoreInvitationsSent", fields: [invitedBy], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([email])
+  @@map("store_invitations")
+}

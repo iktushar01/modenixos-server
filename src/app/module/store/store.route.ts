@@ -6,8 +6,11 @@ import { validateRequest } from "../../middleware/validateRequest";
 import { memoryUpload } from "../../../config/multer.config";
 import { StoreController } from "./store.controller";
 import { createStoreZodSchema, updateStoreZodSchema } from "./store.validation";
+import { StoreMemberRoute } from "../store-member/store-member.route";
 
 const router = Router();
+
+router.use(StoreMemberRoute);
 
 router.post(
   "/",
