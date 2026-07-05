@@ -55,7 +55,7 @@ const register = async (
 
   const token = createStorefrontCustomerToken({ customerId: customer.id, storeId, slug });
   setStorefrontCustomerCookie(res, slug, token);
-  return sanitizeCustomer(customer);
+  return { customer: sanitizeCustomer(customer), token };
 };
 
 const login = async (
@@ -75,7 +75,7 @@ const login = async (
 
   const token = createStorefrontCustomerToken({ customerId: customer.id, storeId, slug });
   setStorefrontCustomerCookie(res, slug, token);
-  return sanitizeCustomer(customer);
+  return { customer: sanitizeCustomer(customer), token };
 };
 
 const logout = (slug: string, res: Response) => {
