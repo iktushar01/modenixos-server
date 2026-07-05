@@ -84,6 +84,10 @@ const updateStore = async (
     payload.theme !== undefined ? { ...existingTheme, ...payload.theme } : undefined;
 
   if (payload.heroSlidesMeta !== undefined) {
+    if (heroSlideFiles.length === 0 && payload.heroSlidesMeta.some((m) => m.fileIndex !== undefined)) {
+      throw new AppError(StatusCodes.BAD_REQUEST, "Hero slide files were not received");
+    }
+
     const uploadedUrls = await Promise.all(
       heroSlideFiles.map((file) =>
         uploadFileToCloudinary(file.buffer, file.originalname).then((r) => r.secure_url),
