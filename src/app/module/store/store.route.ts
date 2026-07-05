@@ -24,6 +24,7 @@ router.patch(
   memoryUpload.fields([
     { name: "logo", maxCount: 1 },
     { name: "banner", maxCount: 1 },
+    { name: "heroSlides", maxCount: 20 },
   ]),
   validateRequest(updateStoreZodSchema),
   StoreController.updateStore,

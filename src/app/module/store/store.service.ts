@@ -49,6 +49,7 @@ const updateStore = async (
   logoName?: string,
   bannerBuffer?: Buffer,
   bannerName?: string,
+  heroSlideFiles: Array<{ buffer: Buffer; originalname: string }> = [],
 ) => {
   const store = await prisma.store.findFirst({
     where: { id: storeId, ownerId },
@@ -78,6 +79,29 @@ const updateStore = async (
     banner = result.secure_url;
   }
 
+  const existingTheme = (store.theme ?? {}) as Record<string, unknown>;
+  let nextTheme: Record<string, unknown> | undefined =
+    payload.theme !== undefined ? { ...existingTheme, ...payload.theme } : undefined;
+
+  if (payload.heroSlidesMeta !== undefined) {
+    const uploadedUrls = await Promise.all(
+      heroSlideFiles.map((file) =>
+        uploadFileToCloudinary(file.buffer, file.originalname).then((r) => r.secure_url),
+      ),
+    );
+
+    const heroSlides: string[] = [];
+    for (const item of payload.heroSlidesMeta) {
+      if (item.existing) heroSlides.push(item.existing);
+      else if (item.fileIndex !== undefined && uploadedUrls[item.fileIndex]) {
+        heroSlides.push(uploadedUrls[item.fileIndex]);
+      }
+    }
+
+    nextTheme = { ...(nextTheme ?? existingTheme), heroSlides };
+    banner = heroSlides[0] ?? null;
+  }
+
   return prisma.store.update({
     where: { id: storeId },
     data: {
@@ -87,7 +111,7 @@ const updateStore = async (
       ...(payload.currency !== undefined ? { currency: payload.currency } : {}),
       ...(payload.description !== undefined ? { description: payload.description } : {}),
       ...(payload.isPublished !== undefined ? { isPublished: payload.isPublished } : {}),
-      ...(payload.theme !== undefined ? { theme: payload.theme as object } : {}),
+      ...(nextTheme !== undefined ? { theme: nextTheme as object } : payload.theme !== undefined ? { theme: payload.theme as object } : {}),
       ...(payload.shipping !== undefined ? { shipping: payload.shipping as object } : {}),
       ...(logo !== undefined ? { logo } : {}),
       ...(banner !== undefined ? { banner } : {}),

@@ -17,4 +17,5 @@ export interface IUpdateStorePayload {
   isPublished?: boolean;
   theme?: Record<string, unknown>;
   shipping?: Record<string, unknown>;
+  heroSlidesMeta?: Array<{ existing?: string; fileIndex?: number }>;
 }

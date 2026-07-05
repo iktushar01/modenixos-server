@@ -37,4 +37,18 @@ export const updateStoreZodSchema = z.object({
   shipping: themeField,
   logo: z.preprocess((val) => (val === "" ? null : val), z.string().nullable().optional()),
   banner: z.preprocess((val) => (val === "" ? null : val), z.string().nullable().optional()),
+  heroSlidesMeta: z.preprocess((val) => {
+    if (val === "" || val === null || val === undefined) return undefined;
+    if (typeof val === "string") {
+      try {
+        return JSON.parse(val);
+      } catch {
+        return undefined;
+      }
+    }
+    return val;
+  }, z.array(z.union([
+    z.object({ existing: z.string().min(1) }),
+    z.object({ fileIndex: z.number().int().min(0) }),
+  ])).optional()),
 });
