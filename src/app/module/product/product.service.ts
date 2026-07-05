@@ -1,7 +1,7 @@
 import { StatusCodes } from "http-status-codes";
 import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
-import { ProductStatus } from "../../lib/prisma-exports";
+import { ProductStatus, ReviewStatus } from "../../lib/prisma-exports";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { uploadFileToCloudinary } from "../../../config/cloudinary.config";
 
@@ -164,7 +164,7 @@ const getPublicProduct = async (storeId: string, id: string) => {
     include: {
       category: true,
       collection: true,
-      reviews: { where: { status: "APPROVED" }, orderBy: { createdAt: "desc" } },
+      reviews: { where: { status: ReviewStatus.APPROVED }, orderBy: { createdAt: "desc" } },
     },
   });
   if (!product) throw new AppError(StatusCodes.NOT_FOUND, "Product not found");
