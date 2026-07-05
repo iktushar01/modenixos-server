@@ -12,6 +12,16 @@ const createPublic = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: StatusCodes.CREATED, success: true, message: "Order placed successfully", data: result });
 });
 
+const getStats = catchAsync(async (req: Request, res: Response) => {
+  const result = await OrderService.getOrderStats(req.storeId!);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Order stats retrieved",
+    data: result,
+  });
+});
+
 const getAll = catchAsync(async (req: Request, res: Response) => {
   const result = await OrderService.getOrders(req.storeId!, req.query as Record<string, unknown>);
   sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Orders retrieved", data: result.data, meta: result.meta });
@@ -55,6 +65,7 @@ const trackOrder = catchAsync(async (req: Request, res: Response) => {
 
 export const OrderController = {
   createPublic,
+  getStats,
   getAll,
   getOne,
   updateStatus,

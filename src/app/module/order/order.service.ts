@@ -159,6 +159,36 @@ const updateOrderStatus = async (
   });
 };
 
+const getOrderStats = async (storeId: string) => {
+  const fulfilledStatuses = [
+    OrderStatus.CONFIRMED,
+    OrderStatus.PACKED,
+    OrderStatus.SHIPPED,
+    OrderStatus.DELIVERED,
+  ];
+
+  const [totalConfirmed, amountAgg, customerRows] = await Promise.all([
+    prisma.order.count({
+      where: { storeId, status: { in: fulfilledStatuses } },
+    }),
+    prisma.order.aggregate({
+      where: { storeId, status: { in: fulfilledStatuses } },
+      _sum: { total: true },
+    }),
+    prisma.order.findMany({
+      where: { storeId, status: { not: OrderStatus.CANCELLED } },
+      select: { customerEmail: true },
+      distinct: ["customerEmail"],
+    }),
+  ]);
+
+  return {
+    totalConfirmed,
+    totalAmount: amountAgg._sum.total ?? 0,
+    customersServed: customerRows.length,
+  };
+};
+
 const getCustomerOrders = async (storeId: string, customerEmail: string) => {
   return prisma.order.findMany({
     where: { storeId, customerEmail: customerEmail.toLowerCase() },
@@ -190,6 +220,7 @@ export const OrderService = {
   createPublicOrder,
   getOrders,
   getOrder,
+  getOrderStats,
   updateOrderStatus,
   getCustomerOrders,
   getCustomerOrderByNumber,
