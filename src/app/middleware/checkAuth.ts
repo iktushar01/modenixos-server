@@ -9,7 +9,37 @@ import { envVars } from "../../config/env";
 
 export const checkAuth = (...authRoles: Role[]) => async (req: Request, res: Response, next: NextFunction) => {
     try {
-        //Session Token Verification
+        //Access Token Verification — prefer JWT path to avoid redundant session DB lookups
+        const accessToken = cookieUtils.getCookie(req, 'accessToken');
+
+        if (accessToken) {
+            const verifiedToken = jwtUtils.verifyToken(accessToken, envVars.ACCESS_TOKEN_SECRET);
+
+            if (verifiedToken.success) {
+                req.user = verifiedToken.decoded as any;
+
+                const isUserExist = await prisma.user.findUnique({
+                    where: { id: (verifiedToken.decoded as any).userId },
+                    select: { id: true, status: true, isDeleted: true, role: true },
+                });
+
+                if (!isUserExist) {
+                    throw new AppError(StatusCodes.UNAUTHORIZED, 'Unauthorized access! User no longer exists.');
+                }
+
+                if (isUserExist.status === UserStatus.SUSPENDED || isUserExist.status === UserStatus.DELETED || isUserExist.isDeleted) {
+                    throw new AppError(StatusCodes.UNAUTHORIZED, 'Unauthorized access! User is not active or has been deleted.');
+                }
+
+                if (authRoles.length > 0 && !authRoles.includes(isUserExist.role as Role)) {
+                    throw new AppError(StatusCodes.FORBIDDEN, 'Forbidden access! You do not have permission to access this resource.');
+                }
+
+                return next();
+            }
+        }
+
+        //Session Token Verification (fallback when JWT is missing/invalid)
         const sessionToken = cookieUtils.getCookie(req, "better-auth.session_token");
 
         if (sessionToken) {
@@ -60,42 +90,15 @@ export const checkAuth = (...authRoles: Role[]) => async (req: Request, res: Res
                     ...user,
                     userId: user.id,
                 } as any;
+                return next();
             }
         }
-
-        //Access Token Verification
-        const accessToken = cookieUtils.getCookie(req, 'accessToken');
 
         if (!accessToken) {
             throw new AppError(StatusCodes.UNAUTHORIZED, 'Unauthorized access! No access token provided.');
         }
 
-        const verifiedToken = jwtUtils.verifyToken(accessToken, envVars.ACCESS_TOKEN_SECRET);
-
-        if (!verifiedToken.success) {
-            throw new AppError(StatusCodes.UNAUTHORIZED, 'Unauthorized access! Invalid access token.');
-        }
-
-        req.user = verifiedToken.decoded as any;
-
-        const isUserExist = await prisma.user.findUnique({
-            where: { id: (verifiedToken.decoded as any).userId },
-            select: { id: true, status: true, isDeleted: true }
-        });
-
-        if (!isUserExist) {
-            throw new AppError(StatusCodes.UNAUTHORIZED, 'Unauthorized access! User no longer exists.');
-        }
-
-        if (isUserExist.status === UserStatus.SUSPENDED || isUserExist.status === UserStatus.DELETED || isUserExist.isDeleted) {
-            throw new AppError(StatusCodes.UNAUTHORIZED, 'Unauthorized access! User is not active or has been deleted.');
-        }
-
-        if (authRoles.length > 0 && !authRoles.includes(verifiedToken.decoded!.role as Role)) {
-            throw new AppError(StatusCodes.FORBIDDEN, 'Forbidden access! You do not have permission to access this resource.');
-        }
-
-        next()
+        throw new AppError(StatusCodes.UNAUTHORIZED, 'Unauthorized access! Invalid access token.');
     } catch (error: any) {
         next(error);
     }

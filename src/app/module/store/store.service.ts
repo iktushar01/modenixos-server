@@ -124,14 +124,24 @@ const updateStore = async (
 };
 
 const getPublicStoreBySlug = async (slug: string) => {
+  const cached = publicStoreCache.get(slug);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.store;
+  }
+
   const store = await prisma.store.findUnique({ where: { slug } });
 
   if (!store || !store.isPublished || store.isSuspended) {
     throw new AppError(StatusCodes.NOT_FOUND, "Store not found");
   }
 
+  publicStoreCache.set(slug, { store, expiresAt: Date.now() + PUBLIC_STORE_CACHE_MS });
   return store;
 };
+
+const PUBLIC_STORE_CACHE_MS = 60_000;
+type CachedPublicStore = NonNullable<Awaited<ReturnType<typeof prisma.store.findUnique>>>;
+const publicStoreCache = new Map<string, { store: CachedPublicStore; expiresAt: number }>();
 
 export const StoreService = {
   createStore,

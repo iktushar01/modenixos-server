@@ -1,8 +1,7 @@
 import { Router } from "express";
 import { validateRequest } from "../middleware/validateRequest";
-import { PublicStoreRoute } from "../module/store/store.route";
+import { resolvePublicStore } from "../middleware/resolvePublicStore";
 import { ProductService } from "../module/product/product.service";
-import { StoreService } from "../module/store/store.service";
 import { CollectionService } from "../module/collection/collection.service";
 import { CategoryService } from "../module/category/category.service";
 import { ReviewService } from "../module/review/review.service";
@@ -26,14 +25,26 @@ import { StatusCodes } from "http-status-codes";
 import { Request, Response } from "express";
 
 const router = Router();
+const storeRouter = Router({ mergeParams: true });
 
-router.use("/stores", PublicStoreRoute);
+storeRouter.use(resolvePublicStore);
 
-router.get(
-  "/stores/:slug/categories",
+storeRouter.get(
+  "/",
   catchAsync(async (req: Request, res: Response) => {
-    const store = await StoreService.getPublicStoreBySlug(req.params.slug as string);
-    const result = await CategoryService.getCategories(store.id, req.query as Record<string, unknown>);
+    sendResponse(res, {
+      statusCode: StatusCodes.OK,
+      success: true,
+      message: "Store retrieved",
+      data: (req as Request & { publicStore?: unknown }).publicStore,
+    });
+  }),
+);
+
+storeRouter.get(
+  "/categories",
+  catchAsync(async (req: Request, res: Response) => {
+    const result = await CategoryService.getCategories(req.storeId!, req.query as Record<string, unknown>);
     sendResponse(res, {
       statusCode: StatusCodes.OK,
       success: true,
@@ -44,11 +55,10 @@ router.get(
   }),
 );
 
-router.get(
-  "/stores/:slug/collections",
+storeRouter.get(
+  "/collections",
   catchAsync(async (req: Request, res: Response) => {
-    const store = await StoreService.getPublicStoreBySlug(req.params.slug as string);
-    const result = await CollectionService.getCollections(store.id, req.query as Record<string, unknown>);
+    const result = await CollectionService.getCollections(req.storeId!, req.query as Record<string, unknown>);
     sendResponse(res, {
       statusCode: StatusCodes.OK,
       success: true,
@@ -59,11 +69,10 @@ router.get(
   }),
 );
 
-router.get(
-  "/stores/:slug/reviews",
+storeRouter.get(
+  "/reviews",
   catchAsync(async (req: Request, res: Response) => {
-    const store = await StoreService.getPublicStoreBySlug(req.params.slug as string);
-    const result = await ReviewService.getPublicReviews(store.id, req.query as Record<string, unknown>);
+    const result = await ReviewService.getPublicReviews(req.storeId!, req.query as Record<string, unknown>);
     sendResponse(res, {
       statusCode: StatusCodes.OK,
       success: true,
@@ -74,11 +83,10 @@ router.get(
   }),
 );
 
-router.get(
-  "/stores/:slug/products",
+storeRouter.get(
+  "/products",
   catchAsync(async (req: Request, res: Response) => {
-    const store = await StoreService.getPublicStoreBySlug(req.params.slug as string);
-    const result = await ProductService.getPublicProducts(store.id, req.query as Record<string, unknown>);
+    const result = await ProductService.getPublicProducts(req.storeId!, req.query as Record<string, unknown>);
     sendResponse(res, {
       statusCode: StatusCodes.OK,
       success: true,
@@ -89,79 +97,73 @@ router.get(
   }),
 );
 
-router.get(
-  "/stores/:slug/products/:id",
+storeRouter.get(
+  "/products/:id",
   catchAsync(async (req: Request, res: Response) => {
-    const store = await StoreService.getPublicStoreBySlug(req.params.slug as string);
-    const result = await ProductService.getPublicProduct(store.id, req.params.id as string);
+    const result = await ProductService.getPublicProduct(req.storeId!, req.params.id as string);
     sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Product retrieved", data: result });
   }),
 );
 
-router.post(
-  "/stores/:slug/orders",
+storeRouter.post(
+  "/orders",
   validateRequest(createOrderZodSchema),
   OrderController.createPublic,
 );
 
-router.post(
-  "/stores/:slug/reviews",
+storeRouter.post(
+  "/reviews",
   validateRequest(createReviewZodSchema),
   ReviewController.createPublic,
 );
 
-router.post(
-  "/stores/:slug/coupons/validate",
+storeRouter.post(
+  "/coupons/validate",
   validateRequest(validateCouponZodSchema),
   CouponController.validatePublic,
 );
 
-router.post(
-  "/stores/:slug/customers/register",
+storeRouter.post(
+  "/customers/register",
   validateRequest(registerStorefrontCustomerSchema),
   StorefrontCustomerController.register,
 );
 
-router.post(
-  "/stores/:slug/customers/login",
+storeRouter.post(
+  "/customers/login",
   validateRequest(loginStorefrontCustomerSchema),
   StorefrontCustomerController.login,
 );
 
-router.post(
-  "/stores/:slug/customers/logout",
-  StorefrontCustomerController.logout,
-);
+storeRouter.post("/customers/logout", StorefrontCustomerController.logout);
 
-router.get(
-  "/stores/:slug/customers/me",
+storeRouter.get(
+  "/customers/me",
   requireStorefrontCustomer,
   StorefrontCustomerController.me,
 );
 
-router.get(
-  "/stores/:slug/wishlist",
-  requireStorefrontCustomer,
-  WishlistController.list,
-);
+storeRouter.get("/wishlist", requireStorefrontCustomer, WishlistController.list);
 
-router.post(
-  "/stores/:slug/wishlist",
+storeRouter.post(
+  "/wishlist",
   requireStorefrontCustomer,
   validateRequest(addWishlistSchema),
   WishlistController.add,
 );
 
-router.delete(
-  "/stores/:slug/wishlist/:productId",
+storeRouter.delete(
+  "/wishlist/:productId",
   requireStorefrontCustomer,
   WishlistController.remove,
 );
 
-router.get(
-  "/stores/:slug/wishlist/:productId",
+storeRouter.get(
+  "/wishlist/:productId",
   requireStorefrontCustomer,
   WishlistController.check,
 );
+
+router.use("/stores/:slug", storeRouter);
 
 export const PublicRoute = router;

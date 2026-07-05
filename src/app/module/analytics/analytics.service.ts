@@ -16,8 +16,13 @@ const getOverview = async (storeId: string) => {
       take: 5,
     }),
     prisma.order.findMany({
-      where: { storeId, status: { not: OrderStatus.CANCELLED } },
+      where: {
+        storeId,
+        status: { not: OrderStatus.CANCELLED },
+        createdAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
+      },
       select: { items: true },
+      take: 500,
     }),
   ]);
 
@@ -50,8 +55,15 @@ const getOverview = async (storeId: string) => {
 };
 
 const getCharts = async (storeId: string) => {
+  const since = new Date();
+  since.setMonth(since.getMonth() - 12);
+
   const orders = await prisma.order.findMany({
-    where: { storeId, status: { not: OrderStatus.CANCELLED } },
+    where: {
+      storeId,
+      status: { not: OrderStatus.CANCELLED },
+      createdAt: { gte: since },
+    },
     select: { total: true, createdAt: true },
     orderBy: { createdAt: "asc" },
   });

@@ -188,6 +188,12 @@ const deleteProduct = async (storeId: string, id: string) => {
   await prisma.product.delete({ where: { id } });
 };
 
+const trimPublicListProduct = (product: Record<string, unknown>) => {
+  const images = Array.isArray(product.images) ? product.images.slice(0, 1) : product.images;
+  const { details: _details, ...rest } = product;
+  return { ...rest, images };
+};
+
 const getPublicProducts = async (
   storeId: string,
   query: Record<string, unknown>,
@@ -197,15 +203,23 @@ const getPublicProducts = async (
   if (query.collection) where.collection = { slug: query.collection };
   if (query.featured === "true") where.collection = { isFeatured: true };
 
-  return new QueryBuilder(prisma.product as any, query, {
+  const result = await new QueryBuilder(prisma.product as any, query, {
     searchableFields: ["name"],
   })
     .where(where)
     .search()
     .sort()
     .paginate()
-    .include({ category: true, collection: true })
+    .include({
+      category: { select: { id: true, name: true, slug: true, parentId: true } },
+      collection: { select: { id: true, name: true, slug: true } },
+    })
     .execute();
+
+  return {
+    ...result,
+    data: (result.data as Record<string, unknown>[]).map(trimPublicListProduct),
+  };
 };
 
 const getPublicProduct = async (storeId: string, id: string) => {
@@ -214,7 +228,11 @@ const getPublicProduct = async (storeId: string, id: string) => {
     include: {
       category: true,
       collection: true,
-      reviews: { where: { status: ReviewStatus.APPROVED }, orderBy: { createdAt: "desc" } },
+      reviews: {
+        where: { status: ReviewStatus.APPROVED },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      },
     },
   });
   if (!product) throw new AppError(StatusCodes.NOT_FOUND, "Product not found");
