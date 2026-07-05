@@ -3,8 +3,29 @@ import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 
+type CustomerRecord = {
+  id: string;
+  storeId: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  passwordHash: string | null;
+  orderCount: number;
+  totalSpent: number;
+  createdAt: Date;
+};
+
+const toPublicCustomer = (customer: CustomerRecord) => {
+  const { passwordHash, ...rest } = customer;
+  return {
+    ...rest,
+    hasAccount: Boolean(passwordHash),
+    createdAt: customer.createdAt.toISOString(),
+  };
+};
+
 const getCustomers = async (storeId: string, query: Record<string, unknown>) => {
-  return new QueryBuilder(prisma.customer as any, query, {
+  const result = await new QueryBuilder(prisma.customer as any, query, {
     searchableFields: ["name", "email", "phone"],
   })
     .where({ storeId })
@@ -12,6 +33,11 @@ const getCustomers = async (storeId: string, query: Record<string, unknown>) => 
     .sort()
     .paginate()
     .execute();
+
+  return {
+    ...result,
+    data: (result.data as CustomerRecord[]).map(toPublicCustomer),
+  };
 };
 
 const getCustomer = async (storeId: string, id: string) => {
@@ -25,7 +51,7 @@ const getCustomer = async (storeId: string, id: string) => {
     orderBy: { createdAt: "desc" },
   });
 
-  return { ...customer, orders };
+  return { ...toPublicCustomer(customer as CustomerRecord), orders };
 };
 
 export const CustomerService = { getCustomers, getCustomer };
