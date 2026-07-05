@@ -1,7 +1,7 @@
 import { StatusCodes } from "http-status-codes";
 import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
-import { ProductStatus, Prisma } from "../../lib/prisma-exports";
+import { ProductStatus } from "../../lib/prisma-exports";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { uploadFileToCloudinary } from "../../../config/cloudinary.config";
 
@@ -18,20 +18,18 @@ const parseArrayField = (value: unknown): string[] => {
   return [];
 };
 
-const parseDetailsField = (
-  value: unknown,
-): Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined => {
+const parseDetailsField = (value: unknown) => {
   if (value === undefined) return undefined;
-  if (value === null || value === "") return Prisma.JsonNull;
-  if (typeof value === "object") return value as Prisma.InputJsonValue;
+  if (value === null || value === "") return null;
+  if (typeof value === "object") return value;
   if (typeof value === "string") {
     try {
-      return JSON.parse(value) as Prisma.InputJsonValue;
+      return JSON.parse(value);
     } catch {
-      return Prisma.JsonNull;
+      return null;
     }
   }
-  return Prisma.JsonNull;
+  return null;
 };
 
 const createProduct = async (
