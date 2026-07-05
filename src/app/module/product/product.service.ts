@@ -4,32 +4,22 @@ import { prisma } from "../../lib/prisma";
 import { ProductStatus } from "../../lib/prisma-exports";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { uploadFileToCloudinary } from "../../../config/cloudinary.config";
+import { Prisma } from "../../generated/prisma";
 
 const parseArrayField = (value: unknown): string[] => {
-  if (Array.isArray(value)) return value as string[];
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [value];
-    } catch {
-      return value.split(",").map((s) => s.trim()).filter(Boolean);
-    }
-  }
-  return [];
-};
-
-const parseDetailsField = (value: unknown): object | null | undefined => {
+  value: unknown,
+): Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined => {
   if (value === undefined) return undefined;
-  if (value === null || value === "") return null;
-  if (typeof value === "object") return value as object;
+  if (value === null || value === "") return Prisma.JsonNull;
+  if (typeof value === "object") return value as Prisma.InputJsonValue;
   if (typeof value === "string") {
     try {
-      return JSON.parse(value) as object;
+      return JSON.parse(value) as Prisma.InputJsonValue;
     } catch {
-      return null;
+      return Prisma.JsonNull;
     }
   }
-  return null;
+  return Prisma.JsonNull;
 };
 
 const createProduct = async (
@@ -44,6 +34,8 @@ const createProduct = async (
       images.push(result.secure_url);
     }
   }
+
+  const details = parseDetailsField(payload.details);
 
   return prisma.product.create({
     data: {
@@ -60,7 +52,7 @@ const createProduct = async (
       sizes: parseArrayField(payload.sizes),
       colors: parseArrayField(payload.colors),
       tags: parseArrayField(payload.tags),
-      details: parseDetailsField(payload.details) ?? undefined,
+      ...(details !== undefined ? { details } : {}),
       status: (payload.status as ProductStatus) ?? ProductStatus.DRAFT,
     },
     include: { category: true, collection: true },
@@ -106,6 +98,9 @@ const updateProduct = async (
     }
   }
 
+  const details =
+    payload.details !== undefined ? parseDetailsField(payload.details) : undefined;
+
   return prisma.product.update({
     where: { id },
     data: {
@@ -121,7 +116,7 @@ const updateProduct = async (
       ...(payload.sizes !== undefined ? { sizes: parseArrayField(payload.sizes) } : {}),
       ...(payload.colors !== undefined ? { colors: parseArrayField(payload.colors) } : {}),
       ...(payload.tags !== undefined ? { tags: parseArrayField(payload.tags) } : {}),
-      ...(payload.details !== undefined ? { details: parseDetailsField(payload.details) } : {}),
+      ...(details !== undefined ? { details } : {}),
       images,
     },
     include: { category: true, collection: true },
