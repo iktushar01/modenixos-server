@@ -1,12 +1,24 @@
 import { StatusCodes } from "http-status-codes";
 import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
-import { ProductStatus } from "../../lib/prisma-exports";
+import { ProductStatus, Prisma } from "../../lib/prisma-exports";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { uploadFileToCloudinary } from "../../../config/cloudinary.config";
-import { Prisma } from "../../generated/prisma";
 
 const parseArrayField = (value: unknown): string[] => {
+  if (Array.isArray(value)) return value as string[];
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [value];
+    } catch {
+      return value.split(",").map((s) => s.trim()).filter(Boolean);
+    }
+  }
+  return [];
+};
+
+const parseDetailsField = (
   value: unknown,
 ): Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined => {
   if (value === undefined) return undefined;
