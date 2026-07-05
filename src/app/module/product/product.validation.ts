@@ -38,6 +38,31 @@ const optionalPositiveNumber = z.preprocess(
   z.coerce.number().positive().optional(),
 );
 
+const formDetails = z.preprocess((val) => {
+  if (typeof val === "string" && val.trim()) {
+    try {
+      return JSON.parse(val);
+    } catch {
+      return undefined;
+    }
+  }
+  return val;
+}, z
+  .object({
+    specifications: z.array(z.string()).optional(),
+    careInstructions: z.array(z.string()).optional(),
+    sizeChart: z
+      .object({
+        note: z.string().optional(),
+        columns: z.array(z.string()),
+        rows: z.array(z.array(z.string())),
+      })
+      .optional(),
+    deliveryOverride: z.string().nullable().optional(),
+    colorImages: z.record(z.string(), z.string()).optional(),
+  })
+  .optional());
+
 export const createProductZodSchema = z.object({
   name: z.string().min(2).max(200).trim(),
   description: z.string().max(5000).optional(),
@@ -51,6 +76,7 @@ export const createProductZodSchema = z.object({
   sizes: formArray.optional(),
   colors: formArray.optional(),
   tags: formArray.optional(),
+  details: formDetails,
   status: z.nativeEnum(ProductStatus).optional(),
 });
 

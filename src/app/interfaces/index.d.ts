@@ -9,6 +9,8 @@ declare global {
         email: string;
       } | null;
       storeId?: string;
+      storefrontCustomerId?: string;
+      storefrontCustomerStoreId?: string;
     }
   }
 }

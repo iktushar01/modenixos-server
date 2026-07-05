@@ -48,14 +48,16 @@ model Product {
   sizes          String[]
   colors         String[]
   tags           String[]
+  details        Json?
   status         ProductStatus @default(DRAFT)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  store      Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  category   Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  collection Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
-  reviews    Review[]
+  store          Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category       Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  collection     Collection?    @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  reviews        Review[]
+  wishlistItems  WishlistItem[]
 
   @@index([storeId])
   @@index([categoryId])

@@ -9,9 +9,17 @@ import { ReviewService } from "../module/review/review.service";
 import { OrderController } from "../module/order/order.controller";
 import { ReviewController } from "../module/review/review.controller";
 import { CouponController } from "../module/coupon/coupon.controller";
+import { StorefrontCustomerController } from "../module/storefront-customer/storefront-customer.controller";
+import { WishlistController } from "../module/wishlist/wishlist.controller";
 import { createOrderZodSchema } from "../module/order/order.validation";
 import { createReviewZodSchema } from "../module/review/review.validation";
 import { validateCouponZodSchema } from "../module/coupon/coupon.validation";
+import {
+  registerStorefrontCustomerSchema,
+  loginStorefrontCustomerSchema,
+  addWishlistSchema,
+} from "../module/storefront-customer/storefront-customer.validation";
+import { requireStorefrontCustomer } from "../middleware/storefrontCustomerAuth";
 import { catchAsync } from "../shared/catchAsync";
 import { sendResponse } from "../shared/sendResponse";
 import { StatusCodes } from "http-status-codes";
@@ -106,6 +114,54 @@ router.post(
   "/stores/:slug/coupons/validate",
   validateRequest(validateCouponZodSchema),
   CouponController.validatePublic,
+);
+
+router.post(
+  "/stores/:slug/customers/register",
+  validateRequest(registerStorefrontCustomerSchema),
+  StorefrontCustomerController.register,
+);
+
+router.post(
+  "/stores/:slug/customers/login",
+  validateRequest(loginStorefrontCustomerSchema),
+  StorefrontCustomerController.login,
+);
+
+router.post(
+  "/stores/:slug/customers/logout",
+  StorefrontCustomerController.logout,
+);
+
+router.get(
+  "/stores/:slug/customers/me",
+  requireStorefrontCustomer,
+  StorefrontCustomerController.me,
+);
+
+router.get(
+  "/stores/:slug/wishlist",
+  requireStorefrontCustomer,
+  WishlistController.list,
+);
+
+router.post(
+  "/stores/:slug/wishlist",
+  requireStorefrontCustomer,
+  validateRequest(addWishlistSchema),
+  WishlistController.add,
+);
+
+router.delete(
+  "/stores/:slug/wishlist/:productId",
+  requireStorefrontCustomer,
+  WishlistController.remove,
+);
+
+router.get(
+  "/stores/:slug/wishlist/:productId",
+  requireStorefrontCustomer,
+  WishlistController.check,
 );
 
 export const PublicRoute = router;

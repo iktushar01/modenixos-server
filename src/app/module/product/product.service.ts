@@ -18,6 +18,20 @@ const parseArrayField = (value: unknown): string[] => {
   return [];
 };
 
+const parseDetailsField = (value: unknown): object | null | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+  if (typeof value === "object") return value as object;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as object;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+
 const createProduct = async (
   storeId: string,
   payload: Record<string, unknown>,
@@ -46,6 +60,7 @@ const createProduct = async (
       sizes: parseArrayField(payload.sizes),
       colors: parseArrayField(payload.colors),
       tags: parseArrayField(payload.tags),
+      details: parseDetailsField(payload.details) ?? undefined,
       status: (payload.status as ProductStatus) ?? ProductStatus.DRAFT,
     },
     include: { category: true, collection: true },
@@ -106,6 +121,7 @@ const updateProduct = async (
       ...(payload.sizes !== undefined ? { sizes: parseArrayField(payload.sizes) } : {}),
       ...(payload.colors !== undefined ? { colors: parseArrayField(payload.colors) } : {}),
       ...(payload.tags !== undefined ? { tags: parseArrayField(payload.tags) } : {}),
+      ...(payload.details !== undefined ? { details: parseDetailsField(payload.details) } : {}),
       images,
     },
     include: { category: true, collection: true },

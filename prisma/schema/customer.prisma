@@ -1,21 +1,40 @@
 model Customer {
-  id          String   @id @default(uuid())
-  storeId     String
-  email       String
-  name        String
-  phone       String?
-  addresses   Json     @default("[]")
-  orderCount  Int      @default(0)
-  totalSpent  Float    @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(uuid())
+  storeId      String
+  email        String
+  name         String
+  phone        String?
+  passwordHash String?
+  addresses    Json     @default("[]")
+  orderCount   Int      @default(0)
+  totalSpent   Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  store   Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  reviews Review[]
+  store         Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  reviews       Review[]
+  wishlistItems WishlistItem[]
 
   @@unique([storeId, email])
   @@index([storeId])
   @@map("customers")
+}
+
+model WishlistItem {
+  id         String   @id @default(uuid())
+  storeId    String
+  customerId String
+  productId  String
+  createdAt  DateTime @default(now())
+
+  store    Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, productId])
+  @@index([storeId])
+  @@index([customerId])
+  @@map("wishlist_items")
 }
 
 model Review {

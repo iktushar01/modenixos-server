@@ -21,9 +21,10 @@ model Store {
   collections Collection[]
   products    Product[]
   orders      Order[]
-  customers   Customer[]
-  reviews     Review[]
-  coupons     Coupon[]
+  customers      Customer[]
+  reviews        Review[]
+  coupons        Coupon[]
+  wishlistItems  WishlistItem[]
 
   @@index([slug])
   @@index([isPublished])
