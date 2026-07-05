@@ -34,4 +34,11 @@ export const createOrderZodSchema = z.object({
 
 export const updateOrderStatusZodSchema = z.object({
   status: z.nativeEnum(OrderStatus),
+  trackingNumber: z.string().max(120).optional().nullable(),
+  trackingCarrier: z.string().max(80).optional().nullable(),
+});
+
+export const trackOrderQuerySchema = z.object({
+  orderNumber: z.string().min(3).max(40),
+  email: z.string().email(),
 });

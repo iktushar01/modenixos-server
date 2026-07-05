@@ -4,6 +4,7 @@ import { catchAsync } from "../../shared/catchAsync";
 import { sendResponse } from "../../shared/sendResponse";
 import { OrderService } from "./order.service";
 import { StoreService } from "../store/store.service";
+import { StorefrontCustomerService } from "../storefront-customer/storefront-customer.service";
 
 const createPublic = catchAsync(async (req: Request, res: Response) => {
   const store = await StoreService.getPublicStoreBySlug(req.params.slug as string);
@@ -22,8 +23,42 @@ const getOne = catchAsync(async (req: Request, res: Response) => {
 });
 
 const updateStatus = catchAsync(async (req: Request, res: Response) => {
-  const result = await OrderService.updateOrderStatus(req.storeId!, req.params.id as string, req.body.status);
+  const { status, trackingNumber, trackingCarrier } = req.body;
+  const result = await OrderService.updateOrderStatus(req.storeId!, req.params.id as string, status, {
+    trackingNumber,
+    trackingCarrier,
+  });
   sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Order status updated", data: result });
 });
 
-export const OrderController = { createPublic, getAll, getOne, updateStatus };
+const getMyOrders = catchAsync(async (req: Request, res: Response) => {
+  const customer = await StorefrontCustomerService.getMe(req.storeId!, req.storefrontCustomerId!);
+  const result = await OrderService.getCustomerOrders(req.storeId!, customer.email);
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Orders retrieved", data: result });
+});
+
+const getMyOrder = catchAsync(async (req: Request, res: Response) => {
+  const customer = await StorefrontCustomerService.getMe(req.storeId!, req.storefrontCustomerId!);
+  const result = await OrderService.getCustomerOrderByNumber(
+    req.storeId!,
+    req.params.orderNumber as string,
+    customer.email,
+  );
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Order retrieved", data: result });
+});
+
+const trackOrder = catchAsync(async (req: Request, res: Response) => {
+  const { orderNumber, email } = req.query as { orderNumber: string; email: string };
+  const result = await OrderService.trackGuestOrder(req.storeId!, orderNumber, email);
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Order found", data: result });
+});
+
+export const OrderController = {
+  createPublic,
+  getAll,
+  getOne,
+  updateStatus,
+  getMyOrders,
+  getMyOrder,
+  trackOrder,
+};

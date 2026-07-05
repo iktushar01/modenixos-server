@@ -10,7 +10,7 @@ import { ReviewController } from "../module/review/review.controller";
 import { CouponController } from "../module/coupon/coupon.controller";
 import { StorefrontCustomerController } from "../module/storefront-customer/storefront-customer.controller";
 import { WishlistController } from "../module/wishlist/wishlist.controller";
-import { createOrderZodSchema } from "../module/order/order.validation";
+import { createOrderZodSchema, trackOrderQuerySchema } from "../module/order/order.validation";
 import { createReviewZodSchema } from "../module/review/review.validation";
 import { validateCouponZodSchema } from "../module/coupon/coupon.validation";
 import {
@@ -109,6 +109,24 @@ storeRouter.post(
   "/orders",
   validateRequest(createOrderZodSchema),
   OrderController.createPublic,
+);
+
+storeRouter.get(
+  "/orders/track",
+  validateRequest(trackOrderQuerySchema, "query"),
+  OrderController.trackOrder,
+);
+
+storeRouter.get(
+  "/orders/me",
+  requireStorefrontCustomer,
+  OrderController.getMyOrders,
+);
+
+storeRouter.get(
+  "/orders/:orderNumber",
+  requireStorefrontCustomer,
+  OrderController.getMyOrder,
 );
 
 storeRouter.post(

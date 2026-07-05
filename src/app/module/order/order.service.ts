@@ -100,7 +100,7 @@ const createPublicOrder = async (
         paymentMethod: payload.paymentMethod ?? "COD",
         items: payload.items as object,
         customerName: payload.customerName,
-        customerEmail: payload.customerEmail,
+        customerEmail: payload.customerEmail.toLowerCase(),
         customerPhone: payload.customerPhone ?? null,
         shippingAddress: payload.shippingAddress as object,
         subtotal: payload.subtotal,
@@ -142,9 +142,48 @@ const getOrder = async (storeId: string, id: string) => {
   return order;
 };
 
-const updateOrderStatus = async (storeId: string, id: string, status: OrderStatus) => {
+const updateOrderStatus = async (
+  storeId: string,
+  id: string,
+  status: OrderStatus,
+  tracking?: { trackingNumber?: string | null; trackingCarrier?: string | null },
+) => {
   await getOrder(storeId, id);
-  return prisma.order.update({ where: { id }, data: { status } });
+  return prisma.order.update({
+    where: { id },
+    data: {
+      status,
+      ...(tracking?.trackingNumber !== undefined ? { trackingNumber: tracking.trackingNumber } : {}),
+      ...(tracking?.trackingCarrier !== undefined ? { trackingCarrier: tracking.trackingCarrier } : {}),
+    },
+  });
+};
+
+const getCustomerOrders = async (storeId: string, customerEmail: string) => {
+  return prisma.order.findMany({
+    where: { storeId, customerEmail: customerEmail.toLowerCase() },
+    orderBy: { createdAt: "desc" },
+  });
+};
+
+const getCustomerOrderByNumber = async (
+  storeId: string,
+  orderNumber: string,
+  customerEmail: string,
+) => {
+  const order = await prisma.order.findFirst({
+    where: {
+      storeId,
+      orderNumber,
+      customerEmail: customerEmail.toLowerCase(),
+    },
+  });
+  if (!order) throw new AppError(StatusCodes.NOT_FOUND, "Order not found");
+  return order;
+};
+
+const trackGuestOrder = async (storeId: string, orderNumber: string, email: string) => {
+  return getCustomerOrderByNumber(storeId, orderNumber, email);
 };
 
 export const OrderService = {
@@ -152,4 +191,7 @@ export const OrderService = {
   getOrders,
   getOrder,
   updateOrderStatus,
+  getCustomerOrders,
+  getCustomerOrderByNumber,
+  trackGuestOrder,
 };
