@@ -14,4 +14,19 @@ const getOne = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Customer retrieved", data: result });
 });
 
-export const CustomerController = { getAll, getOne };
+const create = catchAsync(async (req: Request, res: Response) => {
+  const result = await CustomerService.createCustomer(req.storeId!, req.body);
+  sendResponse(res, { statusCode: StatusCodes.CREATED, success: true, message: "Login account created", data: result });
+});
+
+const update = catchAsync(async (req: Request, res: Response) => {
+  const result = await CustomerService.updateCustomer(req.storeId!, req.params.id as string, req.body);
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Customer updated", data: result });
+});
+
+const remove = catchAsync(async (req: Request, res: Response) => {
+  await CustomerService.deleteCustomer(req.storeId!, req.params.id as string);
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Customer deleted" });
+});
+
+export const CustomerController = { getAll, getOne, create, update, remove };
