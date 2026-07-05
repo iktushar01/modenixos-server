@@ -60,7 +60,27 @@ const formDetails = z.preprocess((val) => {
       .optional(),
     deliveryOverride: z.string().nullable().optional(),
     colorImages: z.record(z.string(), z.string()).optional(),
+    shortDescription: z.string().max(255).optional(),
+    buyingPrice: z.coerce.number().positive().optional(),
+    productSerial: z.string().max(100).optional(),
+    unitName: z.string().max(50).optional(),
+    warranty: z.string().max(200).optional(),
+    initialSoldCount: z.coerce.number().int().min(0).optional(),
+    useDefaultShipping: z.coerce.boolean().optional(),
+    customFields: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+    brand: z.string().max(100).optional(),
+    weight: z.coerce.number().positive().optional(),
+    dimensions: z
+      .object({
+        length: z.coerce.number().positive().optional(),
+        width: z.coerce.number().positive().optional(),
+        height: z.coerce.number().positive().optional(),
+      })
+      .optional(),
+    condition: z.enum(["NEW", "USED", "REFURBISHED"]).optional(),
+    videoUrl: z.string().url().optional(),
   })
+  .passthrough()
   .optional());
 
 export const createProductZodSchema = z.object({
