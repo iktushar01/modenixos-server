@@ -1,6 +1,5 @@
 import { prisma } from "../../lib/prisma";
 import { OrderStatus, ProductStatus } from "../../lib/prisma-exports";
-import { assertAdvancedAnalytics } from "../../utils/planEnforcement";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -9,12 +8,19 @@ function pctChange(current: number, previous: number): number | null {
   return ((current - previous) / previous) * 100;
 }
 
+/** Local calendar month key — avoids UTC shift (e.g. July 1 BD → June in ISO). */
 function monthKey(date: Date) {
-  return date.toISOString().slice(0, 7);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
 }
 
+/** Local calendar day key. */
 function dayKey(date: Date) {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 async function getPeriodMetrics(storeId: string, from: Date, to: Date) {
@@ -147,8 +153,6 @@ const getOverview = async (storeId: string) => {
 };
 
 const getCharts = async (storeId: string) => {
-  await assertAdvancedAnalytics(storeId);
-
   const now = new Date();
   const since12m = new Date(now);
   since12m.setMonth(since12m.getMonth() - 12);
@@ -170,13 +174,14 @@ const getCharts = async (storeId: string) => {
   const dailyRevenue: Record<string, number> = {};
 
   for (const order of orders) {
+    const total = Number(order.total) || 0;
     const month = monthKey(order.createdAt);
-    monthlyRevenue[month] = (monthlyRevenue[month] ?? 0) + order.total;
+    monthlyRevenue[month] = (monthlyRevenue[month] ?? 0) + total;
     monthlyOrders[month] = (monthlyOrders[month] ?? 0) + 1;
 
     if (order.createdAt >= since30d) {
       const day = dayKey(order.createdAt);
-      dailyRevenue[day] = (dailyRevenue[day] ?? 0) + order.total;
+      dailyRevenue[day] = (dailyRevenue[day] ?? 0) + total;
     }
   }
 
