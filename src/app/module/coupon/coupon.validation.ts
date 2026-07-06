@@ -6,8 +6,8 @@ export const createCouponZodSchema = z.object({
   type: z.nativeEnum(CouponType),
   value: z.coerce.number().positive(),
   minOrder: z.coerce.number().min(0).optional(),
-  usageLimit: z.coerce.number().int().positive().optional(),
-  expiresAt: z.coerce.date().optional(),
+  usageLimit: z.coerce.number().int().positive().optional().nullable(),
+  expiresAt: z.coerce.date().optional().nullable(),
   isActive: z.boolean().optional(),
 });
 
