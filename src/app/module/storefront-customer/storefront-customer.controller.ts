@@ -47,9 +47,19 @@ const logout = catchAsync(async (req: Request, res: Response) => {
 });
 
 const me = catchAsync(async (req: Request, res: Response) => {
+  if (!req.storefrontCustomerId || !req.storefrontCustomerStoreId) {
+    sendResponse(res, {
+      statusCode: StatusCodes.OK,
+      success: true,
+      message: "Not authenticated",
+      data: null,
+    });
+    return;
+  }
+
   const result = await StorefrontCustomerService.getMe(
-    req.storefrontCustomerStoreId!,
-    req.storefrontCustomerId!,
+    req.storefrontCustomerStoreId,
+    req.storefrontCustomerId,
   );
   sendResponse(res, {
     statusCode: StatusCodes.OK,

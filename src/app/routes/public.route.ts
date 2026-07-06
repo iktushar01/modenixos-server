@@ -21,7 +21,7 @@ import {
   verifyStorefrontOtpSchema,
   addWishlistSchema,
 } from "../module/storefront-customer/storefront-customer.validation";
-import { requireStorefrontCustomer } from "../middleware/storefrontCustomerAuth";
+import { requireStorefrontCustomer, optionalStorefrontCustomer } from "../middleware/storefrontCustomerAuth";
 import { optionalCheckAuth } from "../middleware/optionalCheckAuth";
 import { chatbotLimiter } from "../middleware/chatbotRateLimiter";
 import { ChatbotController } from "../module/chatbot/chatbot.controller";
@@ -188,7 +188,7 @@ storeRouter.post("/customers/logout", StorefrontCustomerController.logout);
 
 storeRouter.get(
   "/customers/me",
-  requireStorefrontCustomer,
+  optionalStorefrontCustomer,
   StorefrontCustomerController.me,
 );
 
