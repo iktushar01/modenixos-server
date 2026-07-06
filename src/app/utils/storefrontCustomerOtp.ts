@@ -109,5 +109,11 @@ export const verifyStorefrontCustomerOtp = async (
   }
 
   await prisma.verification.delete({ where: { id: record.id } });
-  return { purpose: payload.purpose, name: payload.name };
+  const result: { purpose: StorefrontOtpPurpose; name?: string } = {
+    purpose: payload.purpose,
+  };
+  if (payload.name) {
+    result.name = payload.name;
+  }
+  return result;
 };

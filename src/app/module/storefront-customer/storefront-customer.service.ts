@@ -122,13 +122,14 @@ const verifyOtp = async (
   });
 
   if (purpose === "register") {
+    const displayName = name ?? customer?.name ?? email.split("@")[0] ?? email;
     customer = customer
       ? await prisma.customer.update({
           where: { id: customer.id },
-          data: { name: name ?? customer.name },
+          data: { name: displayName },
         })
       : await prisma.customer.create({
-          data: { storeId, email, name: name ?? email.split("@")[0] },
+          data: { storeId, email, name: displayName },
         });
   } else if (!customer) {
     throw new AppError(StatusCodes.NOT_FOUND, "Customer not found");
