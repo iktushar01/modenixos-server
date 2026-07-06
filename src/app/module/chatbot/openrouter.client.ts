@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { isAxiosError } from "axios";
 import { chatbotConfig } from "../../../config/chatbot.config";
 import AppError from "../../errorHelpers/AppError";
 import { StatusCodes } from "http-status-codes";
@@ -26,44 +26,74 @@ function assertChatbotEnabled() {
   }
 }
 
+function mapOpenRouterError(error: unknown, fallback: string): never {
+  if (isAxiosError(error)) {
+    const status = error.response?.status;
+    if (status === 429) {
+      throw new AppError(
+        StatusCodes.TOO_MANY_REQUESTS,
+        "The assistant is busy right now. Please wait a moment and try again.",
+      );
+    }
+    if (status === 401 || status === 403) {
+      throw new AppError(
+        StatusCodes.SERVICE_UNAVAILABLE,
+        "Chat assistant is temporarily unavailable.",
+      );
+    }
+  }
+
+  throw new AppError(StatusCodes.BAD_GATEWAY, fallback);
+}
+
 export async function createEmbedding(input: string): Promise<number[]> {
   assertChatbotEnabled();
 
-  const response = await axios.post(
-    `${chatbotConfig.baseUrl}/embeddings`,
-    {
-      model: chatbotConfig.embeddingModel,
-      input,
-    },
-    { headers: openRouterHeaders(), timeout: 60_000 },
-  );
+  try {
+    const response = await axios.post(
+      `${chatbotConfig.baseUrl}/embeddings`,
+      {
+        model: chatbotConfig.embeddingModel,
+        input,
+      },
+      { headers: openRouterHeaders(), timeout: 60_000 },
+    );
 
-  const embedding = response.data?.data?.[0]?.embedding as number[] | undefined;
-  if (!embedding?.length) {
-    throw new AppError(StatusCodes.BAD_GATEWAY, "Failed to generate embedding");
+    const embedding = response.data?.data?.[0]?.embedding as number[] | undefined;
+    if (!embedding?.length) {
+      throw new AppError(StatusCodes.BAD_GATEWAY, "Failed to generate embedding");
+    }
+
+    return embedding;
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    mapOpenRouterError(error, "Failed to generate embedding");
   }
-
-  return embedding;
 }
 
 export async function createChatCompletion(messages: ChatMessage[]): Promise<string> {
   assertChatbotEnabled();
 
-  const response = await axios.post(
-    `${chatbotConfig.baseUrl}/chat/completions`,
-    {
-      model: chatbotConfig.llmModel,
-      messages,
-      temperature: 0.3,
-      max_tokens: 800,
-    },
-    { headers: openRouterHeaders(), timeout: 90_000 },
-  );
+  try {
+    const response = await axios.post(
+      `${chatbotConfig.baseUrl}/chat/completions`,
+      {
+        model: chatbotConfig.llmModel,
+        messages,
+        temperature: 0.3,
+        max_tokens: 800,
+      },
+      { headers: openRouterHeaders(), timeout: 90_000 },
+    );
 
-  const content = response.data?.choices?.[0]?.message?.content as string | undefined;
-  if (!content?.trim()) {
-    throw new AppError(StatusCodes.BAD_GATEWAY, "Failed to generate a response");
+    const content = response.data?.choices?.[0]?.message?.content as string | undefined;
+    if (!content?.trim()) {
+      throw new AppError(StatusCodes.BAD_GATEWAY, "Failed to generate a response");
+    }
+
+    return content.trim();
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    mapOpenRouterError(error, "Failed to generate a response");
   }
-
-  return content.trim();
 }

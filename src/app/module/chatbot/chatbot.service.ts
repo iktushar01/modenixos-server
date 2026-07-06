@@ -61,7 +61,7 @@ async function retrieveRelevantChunks(queryEmbedding: number[]): Promise<Retriev
     select: { title: true, content: true, category: true, embedding: true },
   });
 
-  const scored = rows
+  const allScored = rows
     .map((row: { title: string; content: string; category: string; embedding: unknown }) => {
       const embedding = parseEmbedding(row.embedding);
       return {
@@ -71,11 +71,18 @@ async function retrieveRelevantChunks(queryEmbedding: number[]): Promise<Retriev
         score: cosineSimilarity(queryEmbedding, embedding),
       };
     })
-    .filter((row: RetrievedChunk) => row.score >= chatbotConfig.minSimilarity)
-    .sort((a: RetrievedChunk, b: RetrievedChunk) => b.score - a.score)
-    .slice(0, chatbotConfig.topK);
+    .sort((a: RetrievedChunk, b: RetrievedChunk) => b.score - a.score);
 
-  return scored;
+  const aboveThreshold = allScored.filter(
+    (row: RetrievedChunk) => row.score >= chatbotConfig.minSimilarity,
+  );
+
+  const selected =
+    aboveThreshold.length > 0
+      ? aboveThreshold.slice(0, chatbotConfig.topK)
+      : allScored.slice(0, chatbotConfig.topK);
+
+  return selected;
 }
 
 function buildContextBlock(chunks: RetrievedChunk[]): string {
