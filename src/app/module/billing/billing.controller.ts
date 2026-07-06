@@ -17,17 +17,19 @@ const getPlans = catchAsync(async (_req: Request, res: Response) => {
 });
 
 const createCheckout = catchAsync(async (req: Request, res: Response) => {
+  const ownerName = req.user!.email.split("@")[0] ?? "Store Owner";
   const result = await BillingService.createCheckoutSession(req.storeId!, {
     email: req.user!.email,
-    name: req.user!.name,
+    name: ownerName,
   }, req.body.plan);
   sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Checkout session created", data: result });
 });
 
 const createPortal = catchAsync(async (req: Request, res: Response) => {
+  const ownerName = req.user!.email.split("@")[0] ?? "Store Owner";
   const result = await BillingService.createPortalSession(req.storeId!, {
     email: req.user!.email,
-    name: req.user!.name,
+    name: ownerName,
   });
   sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Portal session created", data: result });
 });

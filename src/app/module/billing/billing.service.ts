@@ -234,6 +234,11 @@ const upsertPaymentMethod = async (
 };
 
 const syncSubscriptionFromStripe = async (stripeSubscription: Stripe.Subscription) => {
+  const subData = stripeSubscription as Stripe.Subscription & {
+    current_period_start?: number;
+    current_period_end?: number;
+  };
+
   const storeId = stripeSubscription.metadata.storeId;
   if (!storeId) return null;
 
@@ -257,8 +262,12 @@ const syncSubscriptionFromStripe = async (stripeSubscription: Stripe.Subscriptio
         typeof stripeSubscription.customer === "string"
           ? stripeSubscription.customer
           : stripeSubscription.customer.id,
-      currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000),
+      currentPeriodStart: subData.current_period_start
+        ? new Date(subData.current_period_start * 1000)
+        : null,
+      currentPeriodEnd: subData.current_period_end
+        ? new Date(subData.current_period_end * 1000)
+        : null,
       cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
     },
   });
@@ -267,8 +276,18 @@ const syncSubscriptionFromStripe = async (stripeSubscription: Stripe.Subscriptio
   return updated;
 };
 
+const resolveStoreIdFromInvoice = async (invoice: Stripe.Invoice) => {
+  if (invoice.metadata?.storeId) return invoice.metadata.storeId;
+
+  const subscriptionRef = (invoice as Stripe.Invoice & { subscription?: string | null }).subscription;
+  if (!subscriptionRef || !stripe) return null;
+
+  const stripeSub = await stripe.subscriptions.retrieve(subscriptionRef);
+  return stripeSub.metadata.storeId ?? null;
+};
+
 const syncInvoiceFromStripe = async (invoice: Stripe.Invoice) => {
-  const storeId = invoice.subscription_details?.metadata?.storeId ?? invoice.metadata?.storeId;
+  const storeId = await resolveStoreIdFromInvoice(invoice);
   if (!storeId) return null;
 
   const subscription = await ensureStoreSubscription(storeId);
@@ -321,10 +340,9 @@ const handleWebhookEvent = async (event: Stripe.Event) => {
     case "invoice.payment_failed":
     case "invoice.finalized": {
       await syncInvoiceFromStripe(event.data.object as Stripe.Invoice);
-      const invoice = event.data.object as Stripe.Invoice;
-      if (event.type === "invoice.payment_failed" && invoice.subscription) {
-        const stripeClient = assertStripe();
-        const sub = await stripeClient.subscriptions.retrieve(invoice.subscription as string);
+      const invoice = event.data.object as Stripe.Invoice & { subscription?: string | null };
+      if (event.type === "invoice.payment_failed" && invoice.subscription && stripe) {
+        const sub = await stripe.subscriptions.retrieve(invoice.subscription);
         await syncSubscriptionFromStripe(sub);
       }
       break;
@@ -343,6 +361,12 @@ const handleWebhookEvent = async (event: Stripe.Event) => {
 };
 
 const adminListSubscriptions = async (query: Record<string, unknown>) => {
+  const storesWithoutSub = await prisma.store.findMany({
+    where: { subscription: null },
+    select: { id: true, plan: true },
+  });
+  await Promise.all(storesWithoutSub.map((s) => ensureStoreSubscription(s.id, s.plan)));
+
   const page = Number(query.page) || 1;
   const limit = Number(query.limit) || 20;
   const skip = (page - 1) * limit;
