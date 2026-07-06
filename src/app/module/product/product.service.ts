@@ -257,7 +257,7 @@ const getPublicProducts = async (
   };
 
   const result = await new QueryBuilder(prisma.product as any, sortQuery, {
-    searchableFields: ["name"],
+    searchableFields: ["name", "description", "sku"],
   })
     .where(where)
     .search()
@@ -269,9 +269,19 @@ const getPublicProducts = async (
     })
     .execute();
 
+  let data = (result.data as Record<string, unknown>[]).map(trimPublicListProduct);
+
+  if (query.sale === "true") {
+    data = data.filter((p) => {
+      const price = p.price as number;
+      const discount = p.discountPrice as number | null;
+      return discount != null && discount < price;
+    });
+  }
+
   return {
     ...result,
-    data: (result.data as Record<string, unknown>[]).map(trimPublicListProduct),
+    data,
   };
 };
 
