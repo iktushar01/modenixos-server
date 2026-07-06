@@ -27,6 +27,9 @@ model Store {
   wishlistItems  WishlistItem[]
   members        StoreMember[]
   invitations    StoreInvitation[]
+  subscription   Subscription?
+  paymentMethods PaymentMethod[]
+  invoices       Invoice[]
 
   @@index([slug])
   @@index([isPublished])
