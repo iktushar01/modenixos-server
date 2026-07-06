@@ -209,12 +209,40 @@ const trimPublicListProduct = (product: Record<string, unknown>) => {
   return { ...rest, images };
 };
 
+function productSellingPrice(product: Record<string, unknown>): number {
+  const price = Number(product.price ?? 0);
+  const discount = product.discountPrice != null ? Number(product.discountPrice) : null;
+  if (discount != null && discount < price) return discount;
+  return price;
+}
+
+async function resolveCategoryFilterSlugs(storeId: string, slug: string): Promise<string[]> {
+  const category = await prisma.category.findFirst({
+    where: { storeId, slug },
+    select: {
+      slug: true,
+      children: { select: { slug: true } },
+    },
+  });
+
+  if (!category) return [slug];
+
+  const slugs = new Set<string>([category.slug]);
+  category.children.forEach((child) => slugs.add(child.slug));
+  return [...slugs];
+}
+
 const getPublicProducts = async (
   storeId: string,
   query: Record<string, unknown>,
 ) => {
   const where: Record<string, unknown> = { storeId, status: ProductStatus.ACTIVE };
-  if (query.category) where.category = { slug: query.category };
+
+  if (query.category) {
+    const slugs = await resolveCategoryFilterSlugs(storeId, String(query.category));
+    where.category = slugs.length === 1 ? { slug: slugs[0] } : { slug: { in: slugs } };
+  }
+
   if (query.collection) where.collection = { slug: query.collection };
   if (query.featured === "true") where.collection = { isFeatured: true };
   if (query.size) where.sizes = { has: String(query.size) };
@@ -226,12 +254,6 @@ const getPublicProducts = async (
 
   const minPrice = query.minPrice != null ? Number(query.minPrice) : undefined;
   const maxPrice = query.maxPrice != null ? Number(query.maxPrice) : undefined;
-  if (minPrice != null && !Number.isNaN(minPrice)) {
-    where.price = { ...(where.price as object), gte: minPrice };
-  }
-  if (maxPrice != null && !Number.isNaN(maxPrice)) {
-    where.price = { ...(where.price as object), lte: maxPrice };
-  }
 
   const sort = String(query.sort ?? "");
   let sortBy: string = (query.sortBy as string) ?? "sortOrder";
@@ -250,13 +272,17 @@ const getPublicProducts = async (
     sortOrder = "desc";
   }
 
-  const sortQuery = {
-    ...query,
+  const searchTerm = query.searchTerm ?? query.search ?? query.q;
+
+  const builderQuery = {
+    page: query.page,
+    limit: query.limit,
     sortBy,
     sortOrder,
+    searchTerm: searchTerm ? String(searchTerm) : undefined,
   };
 
-  const result = await new QueryBuilder(prisma.product as any, sortQuery, {
+  const result = await new QueryBuilder(prisma.product as any, builderQuery, {
     searchableFields: ["name", "description", "sku"],
   })
     .where(where)
@@ -272,16 +298,27 @@ const getPublicProducts = async (
   let data = (result.data as Record<string, unknown>[]).map(trimPublicListProduct);
 
   if (query.sale === "true") {
-    data = (data as Record<string, unknown>[]).filter((p) => {
-      const price = p.price as number;
-      const discount = p.discountPrice as number | null;
+    data = data.filter((p) => {
+      const price = Number(p.price ?? 0);
+      const discount = p.discountPrice != null ? Number(p.discountPrice) : null;
       return discount != null && discount < price;
     });
+  }
+
+  if (minPrice != null && !Number.isNaN(minPrice)) {
+    data = data.filter((p) => productSellingPrice(p) >= minPrice);
+  }
+  if (maxPrice != null && !Number.isNaN(maxPrice)) {
+    data = data.filter((p) => productSellingPrice(p) <= maxPrice);
   }
 
   return {
     ...result,
     data,
+    meta: {
+      ...result.meta,
+      total: data.length,
+    },
   };
 };
 
