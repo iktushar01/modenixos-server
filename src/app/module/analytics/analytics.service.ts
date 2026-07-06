@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma";
 import { OrderStatus, ProductStatus } from "../../lib/prisma-exports";
+import { assertAdvancedAnalytics } from "../../utils/planEnforcement";
 
 const getOverview = async (storeId: string) => {
   const [orders, products, customers, revenueAgg, recentOrders, topProducts] = await Promise.all([
@@ -55,6 +56,8 @@ const getOverview = async (storeId: string) => {
 };
 
 const getCharts = async (storeId: string) => {
+  await assertAdvancedAnalytics(storeId);
+
   const since = new Date();
   since.setMonth(since.getMonth() - 12);
 

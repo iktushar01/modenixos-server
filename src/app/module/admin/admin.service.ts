@@ -1,5 +1,7 @@
 import { prisma } from "../../lib/prisma";
-import { OrderStatus } from "../../lib/prisma-exports";
+import { OrderStatus, StorePlan } from "../../lib/prisma-exports";
+import { PLAN_MRR } from "../../../config/planLimits";
+import { BillingService } from "../billing/billing.service";
 
 const getAllStores = async (query: Record<string, unknown>) => {
   const page = Number(query.page) || 1;
@@ -13,6 +15,7 @@ const getAllStores = async (query: Record<string, unknown>) => {
       orderBy: { createdAt: "desc" },
       include: {
         owner: { select: { id: true, name: true, email: true } },
+        subscription: true,
         _count: { select: { products: true, orders: true } },
       },
     }),
@@ -20,6 +23,16 @@ const getAllStores = async (query: Record<string, unknown>) => {
   ]);
 
   return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+};
+
+const getAllStoresWithMrr = async (query: Record<string, unknown>) => {
+  const result = await getAllStores(query);
+  const data = result.data.map((store) => ({
+    ...store,
+    mrr: PLAN_MRR[store.plan as StorePlan] ?? 0,
+    subscriptionStatus: store.subscription?.status ?? "ACTIVE",
+  }));
+  return { data, meta: result.meta };
 };
 
 const suspendStore = async (storeId: string, isSuspended: boolean) => {
@@ -54,7 +67,7 @@ const getAllUsers = async (query: Record<string, unknown>) => {
 };
 
 const getPlatformAnalytics = async () => {
-  const [stores, users, orders, revenueAgg] = await Promise.all([
+  const [stores, users, orders, revenueAgg, billing] = await Promise.all([
     prisma.store.count(),
     prisma.user.count({ where: { isDeleted: false } }),
     prisma.order.count(),
@@ -62,6 +75,7 @@ const getPlatformAnalytics = async () => {
       where: { status: { not: OrderStatus.CANCELLED } },
       _sum: { total: true },
     }),
+    BillingService.adminBillingAnalytics(),
   ]);
 
   return {
@@ -69,7 +83,18 @@ const getPlatformAnalytics = async () => {
     users,
     orders,
     revenue: revenueAgg._sum.total ?? 0,
+    ...billing,
   };
 };
 
-export const AdminService = { getAllStores, suspendStore, getAllUsers, getPlatformAnalytics };
+export const AdminService = {
+  getAllStores: getAllStoresWithMrr,
+  suspendStore,
+  getAllUsers,
+  getPlatformAnalytics,
+  listSubscriptions: BillingService.adminListSubscriptions,
+  getSubscription: BillingService.adminGetSubscription,
+  overridePlan: BillingService.adminOverridePlan,
+  getBillingAnalytics: BillingService.adminBillingAnalytics,
+  getFailedPayments: BillingService.adminFailedPayments,
+};

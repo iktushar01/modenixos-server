@@ -5,7 +5,7 @@ const secretKey = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
 export const isStripeConfigured = Boolean(secretKey);
 
 export const stripe = isStripeConfigured
-  ? new Stripe(secretKey, { apiVersion: "2025-02-24.acacia" })
+  ? new Stripe(secretKey)
   : null;
 
 export const stripeConfig = {

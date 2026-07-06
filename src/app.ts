@@ -11,6 +11,7 @@ import { globalErrorhandler } from "./app/middleware/globalErrorhandler";
 import { notFound } from "./app/middleware/notFound";
 import { betterAuthLimiter } from "./app/middleware/authRateLimiter";
 import { auth } from "./app/lib/auth";
+import { BillingController } from "./app/module/billing/billing.controller";
 
 const app: Application = express();
 
@@ -31,6 +32,11 @@ app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
 
 app.use("/api/auth", authRateLimiter, toNodeHandler(auth));
+app.post(
+  "/api/v1/billing/webhook",
+  express.raw({ type: "application/json" }),
+  BillingController.webhook,
+);
 app.use(express.json());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));

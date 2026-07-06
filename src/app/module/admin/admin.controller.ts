@@ -24,4 +24,39 @@ const getAnalytics = catchAsync(async (_req: Request, res: Response) => {
   sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Platform analytics retrieved", data: result });
 });
 
-export const AdminController = { getStores, suspendStore, getUsers, getAnalytics };
+const getSubscriptions = catchAsync(async (req: Request, res: Response) => {
+  const result = await AdminService.listSubscriptions(req.query as Record<string, unknown>);
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Subscriptions retrieved", data: result.data, meta: result.meta });
+});
+
+const getSubscription = catchAsync(async (req: Request, res: Response) => {
+  const result = await AdminService.getSubscription(req.params.storeId as string);
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Subscription retrieved", data: result });
+});
+
+const overridePlan = catchAsync(async (req: Request, res: Response) => {
+  const result = await AdminService.overridePlan(req.params.id as string, req.body.plan);
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Plan updated", data: result });
+});
+
+const getBillingAnalytics = catchAsync(async (_req: Request, res: Response) => {
+  const result = await AdminService.getBillingAnalytics();
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Billing analytics retrieved", data: result });
+});
+
+const getFailedPayments = catchAsync(async (_req: Request, res: Response) => {
+  const result = await AdminService.getFailedPayments();
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Failed payments retrieved", data: result });
+});
+
+export const AdminController = {
+  getStores,
+  suspendStore,
+  getUsers,
+  getAnalytics,
+  getSubscriptions,
+  getSubscription,
+  overridePlan,
+  getBillingAnalytics,
+  getFailedPayments,
+};

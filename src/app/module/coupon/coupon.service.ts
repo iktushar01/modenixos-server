@@ -3,6 +3,7 @@ import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
 import { CouponType } from "../../lib/prisma-exports";
 import { QueryBuilder } from "../../utils/QueryBuilder";
+import { assertCouponsAllowed } from "../../utils/planEnforcement";
 
 const createCoupon = async (
   storeId: string,
@@ -16,6 +17,8 @@ const createCoupon = async (
     isActive?: boolean;
   },
 ) => {
+  await assertCouponsAllowed(storeId);
+
   try {
     return await prisma.coupon.create({
       data: {

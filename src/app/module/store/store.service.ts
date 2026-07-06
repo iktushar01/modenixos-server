@@ -4,6 +4,7 @@ import { prisma } from "../../lib/prisma";
 import { uploadFileToCloudinary } from "../../../config/cloudinary.config";
 import { ICreateStorePayload, IUpdateStorePayload } from "./store.interface";
 import { resolveUserStoreAccess } from "../../utils/storeAccess";
+import { ensureStoreSubscription } from "../../utils/subscription";
 
 const assertSlugAvailable = async (slug: string, excludeId?: string) => {
   const existing = await prisma.store.findFirst({
@@ -31,6 +32,9 @@ const createStore = async (ownerId: string, payload: ICreateStorePayload) => {
         currency: payload.currency ?? "USD",
         description: payload.description ?? null,
       },
+  }).then(async (store) => {
+    await ensureStoreSubscription(store.id);
+    return store;
   });
 };
 

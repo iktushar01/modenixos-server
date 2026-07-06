@@ -4,6 +4,7 @@ import { prisma } from "../../lib/prisma";
 import { ProductStatus, ReviewStatus } from "../../lib/prisma-exports";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { uploadFileToCloudinary } from "../../../config/cloudinary.config";
+import { assertProductLimit } from "../../utils/planEnforcement";
 
 const parseArrayField = (value: unknown): string[] => {
   if (Array.isArray(value)) return value as string[];
@@ -75,6 +76,8 @@ const createProduct = async (
   payload: Record<string, unknown>,
   imageFiles?: Express.Multer.File[],
 ) => {
+  await assertProductLimit(storeId);
+
   const images = [...parseArrayField(payload.images)];
   const uploadedNew: string[] = [];
   if (imageFiles?.length) {
