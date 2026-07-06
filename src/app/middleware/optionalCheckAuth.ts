@@ -5,6 +5,8 @@ import { cookieUtils } from "../utils/cookies";
 import { UserStatus } from "../lib/prisma-exports";
 import { envVars } from "../../config/env";
 
+type AuthUser = { userId: string; role: string };
+
 /** Sets req.user when a valid session exists; never rejects unauthenticated requests. */
 export const optionalCheckAuth = async (req: Request, _res: Response, next: NextFunction) => {
   try {
@@ -13,14 +15,14 @@ export const optionalCheckAuth = async (req: Request, _res: Response, next: Next
     if (accessToken) {
       const verifiedToken = jwtUtils.verifyToken(accessToken, envVars.ACCESS_TOKEN_SECRET);
       if (verifiedToken.success) {
-        const decoded = verifiedToken.decoded as { userId: string; role: string };
+        const decoded = verifiedToken.decoded as AuthUser;
         const user = await prisma.user.findUnique({
           where: { id: decoded.userId },
           select: { id: true, status: true, isDeleted: true, role: true },
         });
 
         if (user && user.status !== UserStatus.SUSPENDED && user.status !== UserStatus.DELETED && !user.isDeleted) {
-          req.user = { userId: user.id, role: user.role } as Express.Request["user"];
+          (req as Request & { user: AuthUser }).user = { userId: user.id, role: user.role };
           return next();
         }
       }
@@ -39,7 +41,7 @@ export const optionalCheckAuth = async (req: Request, _res: Response, next: Next
         session.user.status !== UserStatus.DELETED &&
         !session.user.isDeleted
       ) {
-        req.user = { userId: session.user.id, role: session.user.role } as Express.Request["user"];
+        (req as Request & { user: AuthUser }).user = { userId: session.user.id, role: session.user.role };
       }
     }
   } catch {

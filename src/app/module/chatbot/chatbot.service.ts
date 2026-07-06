@@ -5,6 +5,7 @@ import { prisma } from "../../lib/prisma";
 import { CHATBOT_KNOWLEDGE } from "./chatbot.knowledge";
 import { cosineSimilarity, parseEmbedding } from "./chatbot.utils";
 import { createChatCompletion, createEmbedding, OpenRouterRateLimitError } from "./openrouter.client";
+import { DEMO_STORE_PATH } from "../../constants/demo";
 
 export type ChatHistoryMessage = {
   role: "user" | "assistant";
@@ -29,7 +30,7 @@ Rules:
 - Answer ONLY using the provided context. If the context does not contain the answer, say you are not sure and suggest contacting support@modenixos.com or visiting the FAQ section.
 - Never invent prices, features, or URLs that are not in the context.
 - Be concise, friendly, and actionable (2-4 short paragraphs max).
-- When relevant, mention specific paths like /register, /onboarding, /dashboard/products, /store/luxe-threads, or /#pricing.
+- When relevant, mention specific paths like /register, /onboarding, /dashboard/products, ${DEMO_STORE_PATH}, /demo, or /#pricing.
 - Do not mention OpenRouter, embeddings, or internal AI systems.`;
 
 function buildActions(message: string): ChatAction[] {
@@ -40,7 +41,7 @@ function buildActions(message: string): ChatAction[] {
     actions.push({ label: "Start free", href: "/register" });
   }
   if (/(demo|example|see|storefront|live)/i.test(lower)) {
-    actions.push({ label: "View demo store", href: "/store/luxe-threads" });
+    actions.push({ label: "View demo store", href: DEMO_STORE_PATH });
   }
   if (/(price|plan|cost|billing|upgrade)/i.test(lower)) {
     actions.push({ label: "See pricing", href: "/#pricing" });

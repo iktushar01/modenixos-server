@@ -1,3 +1,5 @@
+import { DEMO_STORE_PATH } from "../../constants/demo";
+
 export type KnowledgeItem = {
   sourceKey: string;
   title: string;
@@ -46,7 +48,7 @@ export const CHATBOT_KNOWLEDGE: KnowledgeItem[] = [
     title: "Live demo storefront",
     category: "demo",
     content:
-      "Explore a live demo storefront at /store/luxe-threads. It shows a fashion brand example with products, cart, and guest checkout. No login required to browse.",
+      `Explore a live demo storefront at ${DEMO_STORE_PATH} (shortcut: /demo). It shows a fashion brand example with products, cart, and guest checkout. No login required to browse.`,
   },
   {
     sourceKey: "plan-starter",
@@ -130,7 +132,7 @@ export const CHATBOT_KNOWLEDGE: KnowledgeItem[] = [
     title: "Fashion industry",
     category: "industries",
     content:
-      "ModenixOS works for fashion brands. Example demo: Luxe Threads at /store/luxe-threads with apparel, sizes, and collections.",
+      `ModenixOS works for fashion brands. Example demo: Luxe Threads at ${DEMO_STORE_PATH} with apparel, sizes, and collections.`,
   },
   {
     sourceKey: "industry-electronics",
