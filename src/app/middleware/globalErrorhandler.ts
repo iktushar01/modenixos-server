@@ -69,6 +69,22 @@ export const globalErrorhandler = (err: any, req: Request, res: Response, next: 
     } else if (err instanceof AppError) {
         statusCode = err.statusCode;
         message = err.message;
+        if (statusCode === StatusCodes.TOO_MANY_REQUESTS) {
+            // #region agent log
+            fetch("http://127.0.0.1:7520/ingest/ad77b84b-eaea-40fc-9651-0b3ce1c650f2", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "4cfb43" },
+              body: JSON.stringify({
+                sessionId: "4cfb43",
+                hypothesisId: "H2",
+                location: "globalErrorhandler.ts:AppError429",
+                message: "AppError 429 sent to client",
+                data: { errorMessage: err.message },
+                timestamp: Date.now(),
+              }),
+            }).catch(() => {});
+            // #endregion
+        }
         stack = err.stack;
         errorSources = [
             {

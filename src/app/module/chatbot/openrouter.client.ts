@@ -30,6 +30,20 @@ function mapOpenRouterError(error: unknown, fallback: string): never {
   if (isAxiosError(error)) {
     const status = error.response?.status;
     if (status === 429) {
+      // #region agent log
+      fetch("http://127.0.0.1:7520/ingest/ad77b84b-eaea-40fc-9651-0b3ce1c650f2", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "4cfb43" },
+        body: JSON.stringify({
+          sessionId: "4cfb43",
+          hypothesisId: "H2",
+          location: "openrouter.client.ts:mapOpenRouterError",
+          message: "OpenRouter returned 429",
+          data: { status },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       throw new AppError(
         StatusCodes.TOO_MANY_REQUESTS,
         "The assistant is busy right now. Please wait a moment and try again.",
