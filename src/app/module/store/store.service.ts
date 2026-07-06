@@ -58,6 +58,8 @@ const updateStore = async (
   payload: IUpdateStorePayload,
   logoBuffer?: Buffer,
   logoName?: string,
+  logoDarkBuffer?: Buffer,
+  logoDarkName?: string,
   bannerBuffer?: Buffer,
   bannerName?: string,
   heroSlideFiles: Array<{ buffer: Buffer; originalname: string }> = [],
@@ -75,14 +77,21 @@ const updateStore = async (
   }
 
   let logo = payload.logo;
+  let logoDark = payload.logoDark;
   let banner = payload.banner;
 
   if (payload.logo === null) logo = null;
+  if (payload.logoDark === null) logoDark = null;
   if (payload.banner === null) banner = null;
 
   if (logoBuffer && logoName) {
     const result = await uploadFileToCloudinary(logoBuffer, logoName);
     logo = result.secure_url;
+  }
+
+  if (logoDarkBuffer && logoDarkName) {
+    const result = await uploadFileToCloudinary(logoDarkBuffer, logoDarkName);
+    logoDark = result.secure_url;
   }
 
   if (bannerBuffer && bannerName) {
@@ -92,7 +101,20 @@ const updateStore = async (
 
   const existingTheme = (store.theme ?? {}) as Record<string, unknown>;
   let nextTheme: Record<string, unknown> | undefined =
-    payload.theme !== undefined ? { ...existingTheme, ...payload.theme } : undefined;
+    payload.theme !== undefined
+      ? {
+          ...existingTheme,
+          ...payload.theme,
+          ...((payload.theme as Record<string, unknown>).branding
+            ? {
+                branding: {
+                  ...((existingTheme.branding as Record<string, unknown>) ?? {}),
+                  ...((payload.theme as Record<string, unknown>).branding as Record<string, unknown>),
+                },
+              }
+            : {}),
+        }
+      : undefined;
 
   if (payload.heroSlidesMeta !== undefined) {
     if (heroSlideFiles.length === 0 && payload.heroSlidesMeta.some((m) => m.fileIndex !== undefined)) {
@@ -129,6 +151,7 @@ const updateStore = async (
       ...(nextTheme !== undefined ? { theme: nextTheme as object } : payload.theme !== undefined ? { theme: payload.theme as object } : {}),
       ...(payload.shipping !== undefined ? { shipping: payload.shipping as object } : {}),
       ...(logo !== undefined ? { logo } : {}),
+      ...(logoDark !== undefined ? { logoDark } : {}),
       ...(banner !== undefined ? { banner } : {}),
     },
   });

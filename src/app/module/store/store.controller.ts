@@ -27,6 +27,7 @@ const getMyStore = catchAsync(async (req: Request, res: Response) => {
 const updateStore = catchAsync(async (req: Request, res: Response) => {
   const files = (req as any).files;
   const logoFile = files?.logo?.[0];
+  const logoDarkFile = files?.logoDark?.[0];
   const bannerFile = files?.banner?.[0];
   const heroSlideFiles = (files?.heroSlides ?? []) as Array<{ buffer: Buffer; originalname: string }>;
 
@@ -36,6 +37,8 @@ const updateStore = catchAsync(async (req: Request, res: Response) => {
     req.body,
     logoFile?.buffer,
     logoFile?.originalname,
+    logoDarkFile?.buffer,
+    logoDarkFile?.originalname,
     bannerFile?.buffer,
     bannerFile?.originalname,
     heroSlideFiles,

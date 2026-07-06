@@ -10,6 +10,7 @@ export interface IUpdateStorePayload {
   brandName?: string;
   slug?: string;
   logo?: string;
+  logoDark?: string;
   banner?: string;
   country?: string;
   currency?: string;

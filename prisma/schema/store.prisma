@@ -4,6 +4,7 @@ model Store {
   brandName   String
   slug        String    @unique
   logo        String?
+  logoDark    String?
   banner      String?
   country     String
   currency    String    @default("USD")

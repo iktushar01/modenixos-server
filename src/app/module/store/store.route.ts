@@ -26,6 +26,7 @@ router.patch(
   checkAuth(Role.CLIENT),
   memoryUpload.fields([
     { name: "logo", maxCount: 1 },
+    { name: "logoDark", maxCount: 1 },
     { name: "banner", maxCount: 1 },
     { name: "heroSlides", maxCount: 20 },
   ]),

@@ -36,6 +36,7 @@ export const updateStoreZodSchema = z.object({
   theme: themeField,
   shipping: themeField,
   logo: z.preprocess((val) => (val === "" ? null : val), z.string().nullable().optional()),
+  logoDark: z.preprocess((val) => (val === "" ? null : val), z.string().nullable().optional()),
   banner: z.preprocess((val) => (val === "" ? null : val), z.string().nullable().optional()),
   heroSlidesMeta: z.preprocess((val) => {
     if (val === "" || val === null || val === undefined) return undefined;
