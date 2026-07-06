@@ -191,22 +191,40 @@ const getCharts = async (storeId: string) => {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
+  const buildMonthlySeries = (values: Record<string, number>, valueKey: "revenue" | "orders") => {
+    const series = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = monthKey(d);
+      series.push({
+        month: key,
+        label: formatMonthLabel(key),
+        [valueKey]: values[key] ?? 0,
+      });
+    }
+    return series;
+  };
+
+  const buildDailySeries = (values: Record<string, number>) => {
+    const series = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now);
+      d.setHours(12, 0, 0, 0);
+      d.setDate(d.getDate() - i);
+      const key = dayKey(d);
+      series.push({
+        day: key,
+        label: formatDayLabel(key),
+        revenue: values[key] ?? 0,
+      });
+    }
+    return series;
+  };
+
   return {
-    monthlyRevenue: Object.entries(monthlyRevenue).map(([month, revenue]) => ({
-      month,
-      label: formatMonthLabel(month),
-      revenue,
-    })),
-    monthlyOrders: Object.entries(monthlyOrders).map(([month, count]) => ({
-      month,
-      label: formatMonthLabel(month),
-      orders: count,
-    })),
-    dailyRevenue: Object.entries(dailyRevenue).map(([day, revenue]) => ({
-      day,
-      label: formatDayLabel(day),
-      revenue,
-    })),
+    monthlyRevenue: buildMonthlySeries(monthlyRevenue, "revenue"),
+    monthlyOrders: buildMonthlySeries(monthlyOrders, "orders"),
+    dailyRevenue: buildDailySeries(dailyRevenue),
     totalOrders: orders.length,
   };
 };
