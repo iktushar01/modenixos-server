@@ -54,6 +54,7 @@ model Product {
   tags           String[]
   details        Json?
   status         ProductStatus @default(DRAFT)
+  sortOrder      Int           @default(0)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -67,5 +68,6 @@ model Product {
   @@index([categoryId])
   @@index([collectionId])
   @@index([status])
+  @@index([storeId, sortOrder])
   @@map("products")
 }

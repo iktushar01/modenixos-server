@@ -128,3 +128,7 @@ export const createProductZodSchema = z.object({
 });
 
 export const updateProductZodSchema = createProductZodSchema.partial();
+
+export const reorderProductsZodSchema = z.object({
+  productIds: z.array(z.string().uuid()).min(1),
+});

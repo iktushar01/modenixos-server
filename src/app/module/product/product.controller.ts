@@ -31,4 +31,15 @@ const remove = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Product deleted" });
 });
 
-export const ProductController = { create, getAll, getOne, update, remove };
+const reorder = catchAsync(async (req: Request, res: Response) => {
+  const { productIds } = req.body as { productIds: string[] };
+  const result = await ProductService.reorderProducts(req.storeId!, productIds);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Product order updated",
+    data: result,
+  });
+});
+
+export const ProductController = { create, getAll, getOne, update, remove, reorder };

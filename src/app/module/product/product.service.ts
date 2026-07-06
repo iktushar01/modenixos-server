@@ -92,9 +92,15 @@ const createProduct = async (
   let details = parseDetailsField(payload.details);
   details = applyColorImageFileMap(details, uploadedNew, fileMap);
 
+  const maxSort = await prisma.product.aggregate({
+    where: { storeId },
+    _max: { sortOrder: true },
+  });
+
   return prisma.product.create({
     data: {
       storeId,
+      sortOrder: (maxSort._max.sortOrder ?? -1) + 1,
       name: payload.name as string,
       description: (payload.description as string | undefined) ?? null,
       price: Number(payload.price),
@@ -115,7 +121,13 @@ const createProduct = async (
 };
 
 const getProducts = async (storeId: string, query: Record<string, unknown>) => {
-  return new QueryBuilder(prisma.product as any, query, {
+  const sortQuery = {
+    ...query,
+    sortBy: query.sortBy ?? "sortOrder",
+    sortOrder: query.sortOrder ?? "asc",
+  };
+
+  return new QueryBuilder(prisma.product as any, sortQuery, {
     searchableFields: ["name", "sku", "description"],
     filterableFields: ["status", "categoryId", "collectionId"],
   })
@@ -206,7 +218,13 @@ const getPublicProducts = async (
   if (query.collection) where.collection = { slug: query.collection };
   if (query.featured === "true") where.collection = { isFeatured: true };
 
-  const result = await new QueryBuilder(prisma.product as any, query, {
+  const sortQuery = {
+    ...query,
+    sortBy: query.sortBy ?? "sortOrder",
+    sortOrder: query.sortOrder ?? "asc",
+  };
+
+  const result = await new QueryBuilder(prisma.product as any, sortQuery, {
     searchableFields: ["name"],
   })
     .where(where)
@@ -242,12 +260,40 @@ const getPublicProduct = async (storeId: string, id: string) => {
   return product;
 };
 
+const reorderProducts = async (storeId: string, productIds: string[]) => {
+  const uniqueIds = [...new Set(productIds)];
+  if (uniqueIds.length === 0) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "Product order cannot be empty");
+  }
+
+  const owned = await prisma.product.findMany({
+    where: { storeId, id: { in: uniqueIds } },
+    select: { id: true },
+  });
+
+  if (owned.length !== uniqueIds.length) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "One or more products are invalid");
+  }
+
+  await prisma.$transaction(
+    uniqueIds.map((id, index) =>
+      prisma.product.update({
+        where: { id },
+        data: { sortOrder: index },
+      }),
+    ),
+  );
+
+  return { updated: uniqueIds.length };
+};
+
 export const ProductService = {
   createProduct,
   getProducts,
   getProduct,
   updateProduct,
   deleteProduct,
+  reorderProducts,
   getPublicProducts,
   getPublicProduct,
 };
