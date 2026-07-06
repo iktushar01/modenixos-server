@@ -4,6 +4,7 @@ import { checkAuth } from "../../middleware/checkAuth";
 import { validateRequest } from "../../middleware/validateRequest";
 import { AdminController } from "./admin.controller";
 import { suspendStoreZodSchema, adminOverridePlanZodSchema } from "./admin.validation";
+import { updateCommissionSettingsZodSchema } from "../commission/commission.validation";
 
 const router = Router();
 const adminAuth = checkAuth(Role.ADMIN, Role.SUPER_ADMIN);
@@ -17,5 +18,14 @@ router.get("/subscriptions/:storeId", adminAuth, AdminController.getSubscription
 router.patch("/stores/:id/plan", adminAuth, validateRequest(adminOverridePlanZodSchema), AdminController.overridePlan);
 router.get("/billing/analytics", adminAuth, AdminController.getBillingAnalytics);
 router.get("/billing/failed-payments", adminAuth, AdminController.getFailedPayments);
+router.get("/commission/settings", adminAuth, AdminController.getCommissionSettings);
+router.patch(
+  "/commission/settings",
+  adminAuth,
+  validateRequest(updateCommissionSettingsZodSchema),
+  AdminController.updateCommissionSettings,
+);
+router.get("/commission/earnings", adminAuth, AdminController.listCommissionEarnings);
+router.get("/commission/analytics", adminAuth, AdminController.getCommissionAnalytics);
 
 export const AdminRoute = router;

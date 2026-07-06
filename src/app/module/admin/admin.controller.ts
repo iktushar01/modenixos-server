@@ -49,6 +49,32 @@ const getFailedPayments = catchAsync(async (_req: Request, res: Response) => {
   sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Failed payments retrieved", data: result });
 });
 
+const getCommissionSettings = catchAsync(async (_req: Request, res: Response) => {
+  const result = await AdminService.getCommissionSettings();
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Commission settings retrieved", data: result });
+});
+
+const updateCommissionSettings = catchAsync(async (req: Request, res: Response) => {
+  const result = await AdminService.updateCommissionSettings(req.body);
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Commission settings updated", data: result });
+});
+
+const listCommissionEarnings = catchAsync(async (req: Request, res: Response) => {
+  const result = await AdminService.listCommissionEarnings(req.query as Record<string, unknown>);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Commission earnings retrieved",
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
+const getCommissionAnalytics = catchAsync(async (_req: Request, res: Response) => {
+  const result = await AdminService.getCommissionAnalytics();
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Commission analytics retrieved", data: result });
+});
+
 export const AdminController = {
   getStores,
   suspendStore,
@@ -59,4 +85,8 @@ export const AdminController = {
   overridePlan,
   getBillingAnalytics,
   getFailedPayments,
+  getCommissionSettings,
+  updateCommissionSettings,
+  listCommissionEarnings,
+  getCommissionAnalytics,
 };

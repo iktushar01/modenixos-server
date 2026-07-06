@@ -68,7 +68,7 @@ const getAllUsers = async (query: Record<string, unknown>) => {
 };
 
 const getPlatformAnalytics = async () => {
-  const [stores, users, orders, revenueAgg, billing] = await Promise.all([
+  const [stores, users, orders, revenueAgg, billing, commission] = await Promise.all([
     prisma.store.count(),
     prisma.user.count({ where: { isDeleted: false } }),
     prisma.order.count(),
@@ -77,6 +77,7 @@ const getPlatformAnalytics = async () => {
       _sum: { total: true },
     }),
     BillingService.adminBillingAnalytics(),
+    CommissionService.getAnalytics(),
   ]);
 
   return {
@@ -85,6 +86,7 @@ const getPlatformAnalytics = async () => {
     orders,
     revenue: revenueAgg._sum.total ?? 0,
     ...billing,
+    ...commission,
   };
 };
 
@@ -98,4 +100,8 @@ export const AdminService = {
   overridePlan: BillingService.adminOverridePlan,
   getBillingAnalytics: BillingService.adminBillingAnalytics,
   getFailedPayments: BillingService.adminFailedPayments,
+  getCommissionSettings: CommissionService.getSettings,
+  updateCommissionSettings: CommissionService.updateSettings,
+  listCommissionEarnings: CommissionService.listEarnings,
+  getCommissionAnalytics: CommissionService.getAnalytics,
 };
