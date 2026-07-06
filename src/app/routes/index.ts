@@ -11,6 +11,7 @@ import { ReviewRoute } from "../module/review/review.route";
 import { CouponRoute } from "../module/coupon/coupon.route";
 import { AnalyticsRoute } from "../module/analytics/analytics.route";
 import { AdminRoute } from "../module/admin/admin.route";
+import { BillingRoute } from "../module/billing/billing.route";
 import { PublicRoute } from "./public.route";
 
 const router = express.Router();
@@ -27,6 +28,7 @@ router.use("/reviews", ReviewRoute);
 router.use("/coupons", CouponRoute);
 router.use("/analytics", AnalyticsRoute);
 router.use("/admin", AdminRoute);
+router.use("/billing", BillingRoute);
 router.use("/public", PublicRoute);
 
 export const IndexRoute = router;

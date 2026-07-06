@@ -35,3 +35,9 @@ export type StoreMemberRole = (typeof StoreMemberRole)[keyof typeof StoreMemberR
 export const StoreInvitationStatus = prismaModule.StoreInvitationStatus;
 export type StoreInvitationStatus = (typeof StoreInvitationStatus)[keyof typeof StoreInvitationStatus];
 
+export const SubscriptionStatus = prismaModule.SubscriptionStatus;
+export type SubscriptionStatus = (typeof SubscriptionStatus)[keyof typeof SubscriptionStatus];
+
+export const InvoiceStatus = prismaModule.InvoiceStatus;
+export type InvoiceStatus = (typeof InvoiceStatus)[keyof typeof InvoiceStatus];
+
