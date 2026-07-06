@@ -234,8 +234,8 @@ const getPublicProducts = async (
   }
 
   const sort = String(query.sort ?? "");
-  let sortBy = (query.sortBy as string) ?? "sortOrder";
-  let sortOrder = (query.sortOrder as string) ?? "asc";
+  let sortBy: string = (query.sortBy as string) ?? "sortOrder";
+  let sortOrder: "asc" | "desc" = (query.sortOrder as "asc" | "desc") ?? "asc";
   if (sort === "price-asc") {
     sortBy = "price";
     sortOrder = "asc";
@@ -272,7 +272,7 @@ const getPublicProducts = async (
   let data = (result.data as Record<string, unknown>[]).map(trimPublicListProduct);
 
   if (query.sale === "true") {
-    data = data.filter((p) => {
+    data = (data as Record<string, unknown>[]).filter((p) => {
       const price = p.price as number;
       const discount = p.discountPrice as number | null;
       return discount != null && discount < price;
