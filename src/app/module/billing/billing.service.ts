@@ -5,8 +5,12 @@ import { prisma } from "../../lib/prisma";
 import { InvoiceStatus, StorePlan, SubscriptionStatus } from "../../lib/prisma-exports";
 import { PLAN_LIMITS, PLAN_MRR } from "../../../config/planLimits";
 import { isStripeConfigured, stripe, stripeConfig, resolveProMonthlyPriceId } from "../../../config/stripe.config";
+import { sslcommerzConfig } from "../../../config/sslcommerz.config";
 import { ensureStoreSubscription } from "../../utils/subscription";
 import { syncStorePlanFromSubscription } from "../../utils/planEnforcement";
+import { SslCommerzBillingService } from "./sslcommerz-billing.service";
+
+export type BillingProvider = "STRIPE" | "SSLCOMMERZ";
 
 const assertStripe = () => {
   if (!isStripeConfigured || !stripe) {
@@ -95,6 +99,8 @@ const getOverview = async (storeId: string) => {
     usage,
     limits,
     stripeConfigured: isStripeConfigured,
+    sslConfigured: sslcommerzConfig.isConfigured,
+    sslBillingAmountBdt: sslcommerzConfig.billingProAmountBdt,
   };
 };
 
@@ -104,6 +110,8 @@ const getPlans = () => {
     ...PLAN_LIMITS[plan],
     mrr: PLAN_MRR[plan],
     stripePriceConfigured: plan === StorePlan.PRO ? isStripeConfigured : true,
+    sslPriceConfigured: plan === StorePlan.PRO ? sslcommerzConfig.isConfigured : true,
+    sslPriceBdt: plan === StorePlan.PRO ? sslcommerzConfig.billingProAmountBdt : null,
   }));
 };
 
@@ -133,6 +141,7 @@ const createCheckoutSession = async (
   storeId: string,
   owner: { email: string; name: string },
   targetPlan: StorePlan,
+  provider: BillingProvider = "STRIPE",
 ) => {
   if (targetPlan === StorePlan.FREE) {
     throw new AppError(StatusCodes.BAD_REQUEST, "Use cancel subscription to return to the free plan.");
@@ -140,6 +149,10 @@ const createCheckoutSession = async (
 
   if (targetPlan === StorePlan.ENTERPRISE) {
     throw new AppError(StatusCodes.BAD_REQUEST, "Contact sales for the Scale plan.");
+  }
+
+  if (provider === "SSLCOMMERZ") {
+    return SslCommerzBillingService.createSslBillingCheckout(storeId, owner, targetPlan);
   }
 
   const stripeClient = assertStripe();
@@ -205,13 +218,25 @@ const createPortalSession = async (storeId: string, owner: { email: string; name
 const cancelSubscription = async (storeId: string) => {
   const subscription = await ensureStoreSubscription(storeId);
 
+  if (subscription.plan === StorePlan.FREE) {
+    return { message: "You are on the free plan." };
+  }
+
   if (!subscription.stripeSubscriptionId) {
+    if (subscription.billingProvider === "SSLCOMMERZ") {
+      await prisma.subscription.update({
+        where: { storeId },
+        data: { cancelAtPeriodEnd: true },
+      });
+      return { message: "Subscription will cancel at the end of the billing period." };
+    }
+
     await prisma.subscription.update({
       where: { storeId },
       data: { plan: StorePlan.FREE, status: SubscriptionStatus.ACTIVE, cancelAtPeriodEnd: false },
     });
     await prisma.store.update({ where: { id: storeId }, data: { plan: StorePlan.FREE } });
-    return { message: "You are on the free plan." };
+    return { message: "Subscription cancelled." };
   }
 
   const stripeClient = assertStripe();
@@ -290,6 +315,7 @@ const syncSubscriptionFromStripe = async (stripeSubscription: Stripe.Subscriptio
         typeof stripeSubscription.customer === "string"
           ? stripeSubscription.customer
           : stripeSubscription.customer.id,
+      billingProvider: "STRIPE",
       currentPeriodStart: subData.current_period_start
         ? new Date(subData.current_period_start * 1000)
         : null,

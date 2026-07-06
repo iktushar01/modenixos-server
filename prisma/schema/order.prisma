@@ -20,6 +20,7 @@ model Order {
   updatedAt       DateTime    @updatedAt
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  payment Payment?
 
   @@unique([storeId, orderNumber])
   @@index([storeId])

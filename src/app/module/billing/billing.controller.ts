@@ -3,6 +3,7 @@ import { StatusCodes } from "http-status-codes";
 import { catchAsync } from "../../shared/catchAsync";
 import { sendResponse } from "../../shared/sendResponse";
 import { BillingService } from "./billing.service";
+import { SslCommerzBillingService } from "./sslcommerz-billing.service";
 import { isStripeConfigured, stripe, stripeConfig } from "../../../config/stripe.config";
 import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
@@ -40,8 +41,39 @@ const getPlans = catchAsync(async (_req: Request, res: Response) => {
 
 const createCheckout = catchAsync(async (req: Request, res: Response) => {
   const owner = await resolveBillingOwner(req);
-  const result = await BillingService.createCheckoutSession(req.storeId!, owner, req.body.plan);
+  const result = await BillingService.createCheckoutSession(
+    req.storeId!,
+    owner,
+    req.body.plan,
+    req.body.provider ?? "STRIPE",
+  );
   sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Checkout session created", data: result });
+});
+
+const parseCallbackPayload = (req: Request) => {
+  const body = (req.body ?? {}) as Record<string, string>;
+  const query = (req.query ?? {}) as Record<string, string>;
+  return { ...query, ...body };
+};
+
+const sslSuccessCallback = catchAsync(async (req: Request, res: Response) => {
+  const { redirectUrl } = await SslCommerzBillingService.processSuccessCallback(parseCallbackPayload(req));
+  res.redirect(redirectUrl);
+});
+
+const sslFailCallback = catchAsync(async (req: Request, res: Response) => {
+  const { redirectUrl } = await SslCommerzBillingService.processFailCallback(parseCallbackPayload(req));
+  res.redirect(redirectUrl);
+});
+
+const sslCancelCallback = catchAsync(async (req: Request, res: Response) => {
+  const { redirectUrl } = await SslCommerzBillingService.processCancelCallback(parseCallbackPayload(req));
+  res.redirect(redirectUrl);
+});
+
+const sslIpnCallback = catchAsync(async (req: Request, res: Response) => {
+  const result = await SslCommerzBillingService.processIpnCallback(parseCallbackPayload(req));
+  res.status(StatusCodes.OK).json(result);
 });
 
 const createPortal = catchAsync(async (req: Request, res: Response) => {
@@ -77,4 +109,8 @@ export const BillingController = {
   createPortal,
   cancel,
   webhook,
+  sslSuccessCallback,
+  sslFailCallback,
+  sslCancelCallback,
+  sslIpnCallback,
 };

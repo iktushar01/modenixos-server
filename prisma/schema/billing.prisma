@@ -3,6 +3,7 @@ model Subscription {
   storeId              String             @unique
   plan                 StorePlan          @default(FREE)
   status               SubscriptionStatus @default(ACTIVE)
+  billingProvider      String?
   stripeCustomerId     String?            @unique
   stripeSubscriptionId String?            @unique
   currentPeriodStart   DateTime?
@@ -43,6 +44,10 @@ model Invoice {
   storeId         String
   subscriptionId  String?
   stripeInvoiceId String?       @unique
+  provider        String?
+  transactionId   String?       @unique
+  validationId    String?
+  gatewayResponse Json?
   amount          Decimal       @db.Decimal(10, 2)
   currency        String        @default("usd")
   status          InvoiceStatus @default(OPEN)

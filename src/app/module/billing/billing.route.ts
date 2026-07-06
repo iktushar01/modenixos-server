@@ -15,4 +15,12 @@ router.post("/checkout", ...ownerBillingAuth, validateRequest(checkoutZodSchema)
 router.post("/portal", ...ownerBillingAuth, BillingController.createPortal);
 router.post("/cancel", ...ownerBillingAuth, BillingController.cancel);
 
+router.post("/ssl/success", BillingController.sslSuccessCallback);
+router.get("/ssl/success", BillingController.sslSuccessCallback);
+router.post("/ssl/fail", BillingController.sslFailCallback);
+router.get("/ssl/fail", BillingController.sslFailCallback);
+router.post("/ssl/cancel", BillingController.sslCancelCallback);
+router.get("/ssl/cancel", BillingController.sslCancelCallback);
+router.post("/ssl/ipn", BillingController.sslIpnCallback);
+
 export const BillingRoute = router;

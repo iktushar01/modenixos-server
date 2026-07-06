@@ -41,3 +41,6 @@ export type SubscriptionStatus = (typeof SubscriptionStatus)[keyof typeof Subscr
 export const InvoiceStatus = prismaModule.InvoiceStatus;
 export type InvoiceStatus = (typeof InvoiceStatus)[keyof typeof InvoiceStatus];
 
+export const PaymentStatus = prismaModule.PaymentStatus;
+export type PaymentStatus = (typeof PaymentStatus)[keyof typeof PaymentStatus];
+

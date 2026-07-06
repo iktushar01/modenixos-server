@@ -77,3 +77,11 @@ enum InvoiceStatus {
   VOID
   UNCOLLECTIBLE
 }
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}

@@ -124,7 +124,7 @@ const createPublicOrder = async (
 };
 
 const getOrders = async (storeId: string, query: Record<string, unknown>) => {
-  return new QueryBuilder(prisma.order as any, query, {
+  const result = await new QueryBuilder(prisma.order as any, query, {
     searchableFields: ["orderNumber", "customerName", "customerEmail"],
     filterableFields: ["status"],
   })
@@ -134,10 +134,27 @@ const getOrders = async (storeId: string, query: Record<string, unknown>) => {
     .sort()
     .paginate()
     .execute();
+
+  const orderIds = (result.data as Array<{ id: string }>).map((o) => o.id);
+  const payments = orderIds.length
+    ? await prisma.payment.findMany({ where: { orderId: { in: orderIds } } })
+    : [];
+  const paymentByOrder = new Map(payments.map((p) => [p.orderId, p]));
+
+  return {
+    ...result,
+    data: (result.data as Array<Record<string, unknown>>).map((order) => ({
+      ...order,
+      payment: paymentByOrder.get(order.id as string) ?? null,
+    })),
+  };
 };
 
 const getOrder = async (storeId: string, id: string) => {
-  const order = await prisma.order.findFirst({ where: { id, storeId } });
+  const order = await prisma.order.findFirst({
+    where: { id, storeId },
+    include: { payment: true },
+  });
   if (!order) throw new AppError(StatusCodes.NOT_FOUND, "Order not found");
   return order;
 };
