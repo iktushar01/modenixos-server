@@ -113,6 +113,14 @@ const updateStore = async (
                 },
               }
             : {}),
+          ...((payload.theme as Record<string, unknown>).staticPages
+            ? {
+                staticPages: {
+                  ...((existingTheme.staticPages as Record<string, unknown>) ?? {}),
+                  ...((payload.theme as Record<string, unknown>).staticPages as Record<string, unknown>),
+                },
+              }
+            : {}),
         }
       : undefined;
 
