@@ -1,5 +1,7 @@
 import app from "./app";
 import { envVars } from "./config/env";
+import { chatbotConfig } from "./config/chatbot.config";
+import { seedChatbotKnowledge } from "./app/module/chatbot/chatbot.service";
 import { seedSuperAdmin } from "./app/utils/seed";
 
 // Load .env only in development
@@ -37,6 +39,12 @@ const bootstrap = async () => {
         error
       );
     });
+
+    if (chatbotConfig.enabled) {
+      seedChatbotKnowledge().catch((error) => {
+        console.error("[chatbot] Knowledge seed skipped due to startup error:", error);
+      });
+    }
   } catch (error: any) {
     if (error.code === "EADDRINUSE") {
       console.error(

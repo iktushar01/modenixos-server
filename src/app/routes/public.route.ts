@@ -22,12 +22,24 @@ import {
   addWishlistSchema,
 } from "../module/storefront-customer/storefront-customer.validation";
 import { requireStorefrontCustomer } from "../middleware/storefrontCustomerAuth";
+import { chatbotLimiter } from "../middleware/chatbotRateLimiter";
+import { ChatbotController } from "../module/chatbot/chatbot.controller";
+import { chatbotMessageSchema } from "../module/chatbot/chatbot.validation";
 import { catchAsync } from "../shared/catchAsync";
 import { sendResponse } from "../shared/sendResponse";
 import { StatusCodes } from "http-status-codes";
 import { Request, Response } from "express";
 
 const router = Router();
+
+router.get("/chat/config", ChatbotController.getConfig);
+
+router.post(
+  "/chat",
+  chatbotLimiter,
+  validateRequest(chatbotMessageSchema),
+  ChatbotController.chat,
+);
 const storeRouter = Router({ mergeParams: true });
 
 storeRouter.use(resolvePublicStore);
