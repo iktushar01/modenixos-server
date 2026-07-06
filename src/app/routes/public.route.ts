@@ -22,6 +22,7 @@ import {
   addWishlistSchema,
 } from "../module/storefront-customer/storefront-customer.validation";
 import { requireStorefrontCustomer } from "../middleware/storefrontCustomerAuth";
+import { optionalCheckAuth } from "../middleware/optionalCheckAuth";
 import { chatbotLimiter } from "../middleware/chatbotRateLimiter";
 import { ChatbotController } from "../module/chatbot/chatbot.controller";
 import { chatbotMessageSchema } from "../module/chatbot/chatbot.validation";
@@ -42,6 +43,7 @@ router.post(
 );
 const storeRouter = Router({ mergeParams: true });
 
+storeRouter.use(optionalCheckAuth);
 storeRouter.use(resolvePublicStore);
 
 storeRouter.get(

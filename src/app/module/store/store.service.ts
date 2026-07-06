@@ -157,16 +157,27 @@ const updateStore = async (
   });
 };
 
-const getPublicStoreBySlug = async (slug: string) => {
+const getPublicStoreBySlug = async (slug: string, previewUserId?: string) => {
+  const store = await prisma.store.findUnique({ where: { slug } });
+
+  if (!store || store.isSuspended) {
+    throw new AppError(StatusCodes.NOT_FOUND, "Store not found");
+  }
+
+  if (!store.isPublished) {
+    if (!previewUserId) {
+      throw new AppError(StatusCodes.NOT_FOUND, "Store not found");
+    }
+    const access = await resolveUserStoreAccess(previewUserId);
+    if (!access || access.storeId !== store.id) {
+      throw new AppError(StatusCodes.NOT_FOUND, "Store not found");
+    }
+    return { ...store, isPreview: true };
+  }
+
   const cached = publicStoreCache.get(slug);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.store;
-  }
-
-  const store = await prisma.store.findUnique({ where: { slug } });
-
-  if (!store || !store.isPublished || store.isSuspended) {
-    throw new AppError(StatusCodes.NOT_FOUND, "Store not found");
   }
 
   publicStoreCache.set(slug, { store, expiresAt: Date.now() + PUBLIC_STORE_CACHE_MS });

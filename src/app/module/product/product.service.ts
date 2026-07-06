@@ -217,11 +217,43 @@ const getPublicProducts = async (
   if (query.category) where.category = { slug: query.category };
   if (query.collection) where.collection = { slug: query.collection };
   if (query.featured === "true") where.collection = { isFeatured: true };
+  if (query.size) where.sizes = { has: String(query.size) };
+  if (query.color) where.colors = { has: String(query.color) };
+  if (query.tag) where.tags = { has: String(query.tag) };
+  if (query.sale === "true") {
+    where.discountPrice = { not: null };
+  }
+
+  const minPrice = query.minPrice != null ? Number(query.minPrice) : undefined;
+  const maxPrice = query.maxPrice != null ? Number(query.maxPrice) : undefined;
+  if (minPrice != null && !Number.isNaN(minPrice)) {
+    where.price = { ...(where.price as object), gte: minPrice };
+  }
+  if (maxPrice != null && !Number.isNaN(maxPrice)) {
+    where.price = { ...(where.price as object), lte: maxPrice };
+  }
+
+  const sort = String(query.sort ?? "");
+  let sortBy = (query.sortBy as string) ?? "sortOrder";
+  let sortOrder = (query.sortOrder as string) ?? "asc";
+  if (sort === "price-asc") {
+    sortBy = "price";
+    sortOrder = "asc";
+  } else if (sort === "price-desc") {
+    sortBy = "price";
+    sortOrder = "desc";
+  } else if (sort === "name") {
+    sortBy = "name";
+    sortOrder = "asc";
+  } else if (sort === "newest") {
+    sortBy = "createdAt";
+    sortOrder = "desc";
+  }
 
   const sortQuery = {
     ...query,
-    sortBy: query.sortBy ?? "sortOrder",
-    sortOrder: query.sortOrder ?? "asc",
+    sortBy,
+    sortOrder,
   };
 
   const result = await new QueryBuilder(prisma.product as any, sortQuery, {

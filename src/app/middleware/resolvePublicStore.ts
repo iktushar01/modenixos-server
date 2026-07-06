@@ -6,7 +6,8 @@ import { StoreService } from "../module/store/store.service";
 export const resolvePublicStore = catchAsync(
   async (req: Request, _res: Response, next: NextFunction) => {
     const slug = req.params.slug as string;
-    const store = await StoreService.getPublicStoreBySlug(slug);
+    const previewUserId = req.user?.userId;
+    const store = await StoreService.getPublicStoreBySlug(slug, previewUserId);
     req.storeId = store.id;
     (req as Request & { publicStore?: typeof store }).publicStore = store;
     next();
