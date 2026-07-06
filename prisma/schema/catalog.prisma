@@ -5,6 +5,7 @@ model Category {
   name      String
   slug      String
   image     String?
+  sortOrder Int       @default(0)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -16,6 +17,7 @@ model Category {
   @@unique([storeId, slug])
   @@index([storeId])
   @@index([parentId])
+  @@index([storeId, parentId, sortOrder])
   @@map("categories")
 }
 
@@ -26,6 +28,7 @@ model Collection {
   slug        String
   image       String?
   isFeatured  Boolean   @default(false)
+  sortOrder   Int       @default(0)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -34,6 +37,7 @@ model Collection {
 
   @@unique([storeId, slug])
   @@index([storeId])
+  @@index([storeId, sortOrder])
   @@map("collections")
 }
 
