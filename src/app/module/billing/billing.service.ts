@@ -4,7 +4,7 @@ import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
 import { InvoiceStatus, StorePlan, SubscriptionStatus } from "../../lib/prisma-exports";
 import { PLAN_LIMITS, PLAN_MRR } from "../../../config/planLimits";
-import { isStripeConfigured, stripe, stripeConfig } from "../../../config/stripe.config";
+import { isStripeConfigured, stripe, stripeConfig, resolveProMonthlyPriceId } from "../../../config/stripe.config";
 import { ensureStoreSubscription } from "../../utils/subscription";
 import { syncStorePlanFromSubscription } from "../../utils/planEnforcement";
 
@@ -103,7 +103,7 @@ const getPlans = () => {
     plan,
     ...PLAN_LIMITS[plan],
     mrr: PLAN_MRR[plan],
-    stripePriceConfigured: plan === StorePlan.PRO ? Boolean(stripeConfig.priceProMonthly) : true,
+    stripePriceConfigured: plan === StorePlan.PRO ? isStripeConfigured : true,
   }));
 };
 
@@ -142,36 +142,64 @@ const createCheckoutSession = async (
     throw new AppError(StatusCodes.BAD_REQUEST, "Contact sales for the Scale plan.");
   }
 
-  if (!stripeConfig.priceProMonthly) {
-    throw new AppError(StatusCodes.SERVICE_UNAVAILABLE, "STRIPE_PRICE_PRO_MONTHLY is not configured.");
-  }
+  const stripeClient = assertStripe();
+  const priceId = await resolveProMonthlyPriceId(stripeClient);
 
-  const { stripeClient, customerId } = await getOrCreateStripeCustomer(storeId, owner.email, owner.name);
+  try {
+    const { customerId } = await getOrCreateStripeCustomer(storeId, owner.email, owner.name);
 
-  const session = await stripeClient.checkout.sessions.create({
-    mode: "subscription",
-    customer: customerId,
-    line_items: [{ price: stripeConfig.priceProMonthly, quantity: 1 }],
-    success_url: stripeConfig.successUrl,
-    cancel_url: stripeConfig.cancelUrl,
-    metadata: { storeId, targetPlan },
-    subscription_data: {
+    const session = await stripeClient.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: stripeConfig.successUrl,
+      cancel_url: stripeConfig.cancelUrl,
       metadata: { storeId, targetPlan },
-    },
-  });
+      subscription_data: {
+        metadata: { storeId, targetPlan },
+      },
+    });
 
-  return { url: session.url };
+    if (!session.url) {
+      throw new AppError(StatusCodes.INTERNAL_SERVER_ERROR, "Stripe did not return a checkout URL.");
+    }
+
+    return { url: session.url };
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    const stripeMessage = error instanceof Stripe.errors.StripeError ? error.message : null;
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      stripeMessage ?? "Could not create Stripe checkout session. Verify your Stripe keys and price configuration.",
+    );
+  }
 };
 
 const createPortalSession = async (storeId: string, owner: { email: string; name: string }) => {
-  const { stripeClient, customerId } = await getOrCreateStripeCustomer(storeId, owner.email, owner.name);
+  const stripeClient = assertStripe();
 
-  const session = await stripeClient.billingPortal.sessions.create({
-    customer: customerId,
-    return_url: `${process.env.FRONTEND_URL ?? "http://localhost:3000"}/dashboard/settings/billing`,
-  });
+  try {
+    const { customerId } = await getOrCreateStripeCustomer(storeId, owner.email, owner.name);
 
-  return { url: session.url };
+    const session = await stripeClient.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: `${process.env.FRONTEND_URL ?? "http://localhost:3000"}/dashboard/settings/billing`,
+    });
+
+    if (!session.url) {
+      throw new AppError(StatusCodes.INTERNAL_SERVER_ERROR, "Stripe did not return a portal URL.");
+    }
+
+    return { url: session.url };
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    const stripeMessage = error instanceof Stripe.errors.StripeError ? error.message : null;
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      stripeMessage ??
+        "Could not open billing portal. Enable the Customer Portal in your Stripe Dashboard (Settings → Billing → Customer portal).",
+    );
+  }
 };
 
 const cancelSubscription = async (storeId: string) => {

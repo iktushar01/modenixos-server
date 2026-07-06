@@ -5,6 +5,28 @@ import { sendResponse } from "../../shared/sendResponse";
 import { BillingService } from "./billing.service";
 import { isStripeConfigured, stripe, stripeConfig } from "../../../config/stripe.config";
 import AppError from "../../errorHelpers/AppError";
+import { prisma } from "../../lib/prisma";
+
+const resolveBillingOwner = async (req: Request) => {
+  const userId = req.user?.userId;
+  if (!userId) {
+    throw new AppError(StatusCodes.UNAUTHORIZED, "Unauthorized");
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true, name: true },
+  });
+
+  if (!user?.email) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "Account email is required for billing.");
+  }
+
+  return {
+    email: user.email,
+    name: user.name || user.email.split("@")[0] || "Store Owner",
+  };
+};
 
 const getOverview = catchAsync(async (req: Request, res: Response) => {
   const result = await BillingService.getOverview(req.storeId!);
@@ -17,20 +39,14 @@ const getPlans = catchAsync(async (_req: Request, res: Response) => {
 });
 
 const createCheckout = catchAsync(async (req: Request, res: Response) => {
-  const ownerName = req.user!.email.split("@")[0] ?? "Store Owner";
-  const result = await BillingService.createCheckoutSession(req.storeId!, {
-    email: req.user!.email,
-    name: ownerName,
-  }, req.body.plan);
+  const owner = await resolveBillingOwner(req);
+  const result = await BillingService.createCheckoutSession(req.storeId!, owner, req.body.plan);
   sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Checkout session created", data: result });
 });
 
 const createPortal = catchAsync(async (req: Request, res: Response) => {
-  const ownerName = req.user!.email.split("@")[0] ?? "Store Owner";
-  const result = await BillingService.createPortalSession(req.storeId!, {
-    email: req.user!.email,
-    name: ownerName,
-  });
+  const owner = await resolveBillingOwner(req);
+  const result = await BillingService.createPortalSession(req.storeId!, owner);
   sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Portal session created", data: result });
 });
 
