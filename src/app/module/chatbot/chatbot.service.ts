@@ -62,7 +62,7 @@ async function retrieveRelevantChunks(queryEmbedding: number[]): Promise<Retriev
   });
 
   const scored = rows
-    .map((row) => {
+    .map((row: { title: string; content: string; category: string; embedding: unknown }) => {
       const embedding = parseEmbedding(row.embedding);
       return {
         title: row.title,
@@ -71,8 +71,8 @@ async function retrieveRelevantChunks(queryEmbedding: number[]): Promise<Retriev
         score: cosineSimilarity(queryEmbedding, embedding),
       };
     })
-    .filter((row) => row.score >= chatbotConfig.minSimilarity)
-    .sort((a, b) => b.score - a.score)
+    .filter((row: RetrievedChunk) => row.score >= chatbotConfig.minSimilarity)
+    .sort((a: RetrievedChunk, b: RetrievedChunk) => b.score - a.score)
     .slice(0, chatbotConfig.topK);
 
   return scored;
