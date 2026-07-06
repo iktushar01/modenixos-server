@@ -79,6 +79,32 @@ const formDetails = z.preprocess((val) => {
       .optional(),
     condition: z.enum(["NEW", "USED", "REFURBISHED"]).optional(),
     videoUrl: z.string().url().optional(),
+    slug: z.string().max(200).optional(),
+    barcode: z.string().max(100).optional(),
+    metaTitle: z.string().max(200).optional(),
+    metaDescription: z.string().max(500).optional(),
+    trackInventory: z.coerce.boolean().optional(),
+    lowStockAlert: z.coerce.number().int().min(0).optional(),
+    featured: z.coerce.boolean().optional(),
+    categoryAttributes: z.record(z.string(), z.union([z.string(), z.coerce.number()])).optional(),
+    enableVariants: z.coerce.boolean().optional(),
+    variantAttributes: z
+      .array(z.object({ name: z.string(), options: z.array(z.string()) }))
+      .optional(),
+    variants: z
+      .array(
+        z.object({
+          id: z.string(),
+          options: z.record(z.string(), z.string()),
+          sku: z.string().optional(),
+          price: z.coerce.number().positive().optional(),
+          salePrice: z.coerce.number().positive().optional(),
+          stock: z.coerce.number().int().min(0).optional(),
+          image: z.string().optional(),
+          status: z.enum(["ACTIVE", "DRAFT"]).optional(),
+        }),
+      )
+      .optional(),
   })
   .passthrough()
   .optional());
