@@ -30,7 +30,8 @@ model Store {
   invitations    StoreInvitation[]
   subscription   Subscription?
   paymentMethods PaymentMethod[]
-  invoices       Invoice[]
+  invoices         Invoice[]
+  platformEarnings PlatformEarning[]
 
   @@index([slug])
   @@index([isPublished])

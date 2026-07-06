@@ -44,3 +44,12 @@ export type InvoiceStatus = (typeof InvoiceStatus)[keyof typeof InvoiceStatus];
 export const PaymentStatus = prismaModule.PaymentStatus;
 export type PaymentStatus = (typeof PaymentStatus)[keyof typeof PaymentStatus];
 
+export const CommissionType = prismaModule.CommissionType;
+export type CommissionType = (typeof CommissionType)[keyof typeof CommissionType];
+
+export const CommissionBase = prismaModule.CommissionBase;
+export type CommissionBase = (typeof CommissionBase)[keyof typeof CommissionBase];
+
+export const PlatformEarningStatus = prismaModule.PlatformEarningStatus;
+export type PlatformEarningStatus = (typeof PlatformEarningStatus)[keyof typeof PlatformEarningStatus];
+

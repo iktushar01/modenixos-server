@@ -3,6 +3,7 @@ import { StatusCodes } from "http-status-codes";
 import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
 import { CouponType, OrderStatus, PaymentStatus, ProductStatus } from "../../lib/prisma-exports";
+import { CommissionService } from "../commission/commission.service";
 import { sslcommerzConfig } from "../../../config/sslcommerz.config";
 import { SslCommerzService } from "./sslcommerz.service";
 
@@ -316,14 +317,11 @@ const markPaymentPaid = async (
   validationId: string,
   gatewayResponse: Record<string, unknown>,
 ) => {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const payment = await tx.payment.findUnique({ where: { id: paymentId } });
     if (!payment) throw new AppError(StatusCodes.NOT_FOUND, "Payment not found");
     if (payment.status === PaymentStatus.PAID) {
-      return tx.payment.findUnique({
-        where: { id: paymentId },
-        include: { order: { include: { store: { select: { slug: true } } } } },
-      });
+      return { payment, wasAlreadyPaid: true };
     }
 
     await tx.payment.update({
@@ -341,10 +339,20 @@ const markPaymentPaid = async (
       data: { status: OrderStatus.CONFIRMED, paymentMethod: "SSLCOMMERZ" },
     });
 
-    return tx.payment.findUnique({
-      where: { id: paymentId },
-      include: { order: { include: { store: { select: { slug: true } } } } },
-    });
+    return { payment, wasAlreadyPaid: false };
+  });
+
+  if (!result.wasAlreadyPaid) {
+    await CommissionService.onOrderStatusChanged(
+      result.payment.orderId,
+      OrderStatus.PENDING,
+      OrderStatus.CONFIRMED,
+    );
+  }
+
+  return prisma.payment.findUnique({
+    where: { id: paymentId },
+    include: { order: { include: { store: { select: { slug: true } } } } },
   });
 };
 

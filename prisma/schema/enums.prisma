@@ -85,3 +85,18 @@ enum PaymentStatus {
   CANCELLED
   REFUNDED
 }
+
+enum CommissionType {
+  PERCENT
+  FIXED
+}
+
+enum CommissionBase {
+  SUBTOTAL
+  TOTAL
+}
+
+enum PlatformEarningStatus {
+  EARNED
+  REVERSED
+}

@@ -3,6 +3,7 @@ import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
 import { OrderStatus, ProductStatus } from "../../lib/prisma-exports";
 import { QueryBuilder } from "../../utils/QueryBuilder";
+import { CommissionService } from "../commission/commission.service";
 
 const generateOrderNumber = () => `ORD-${Date.now().toString(36).toUpperCase()}`;
 
@@ -136,16 +137,21 @@ const getOrders = async (storeId: string, query: Record<string, unknown>) => {
     .execute();
 
   const orderIds = (result.data as Array<{ id: string }>).map((o) => o.id);
-  const payments = orderIds.length
-    ? await prisma.payment.findMany({ where: { orderId: { in: orderIds } } })
-    : [];
+  const [payments, earnings] = orderIds.length
+    ? await Promise.all([
+        prisma.payment.findMany({ where: { orderId: { in: orderIds } } }),
+        prisma.platformEarning.findMany({ where: { orderId: { in: orderIds } } }),
+      ])
+    : [[], []];
   const paymentByOrder = new Map(payments.map((p) => [p.orderId, p]));
+  const earningByOrder = new Map(earnings.map((e) => [e.orderId, e]));
 
   return {
     ...result,
     data: (result.data as Array<Record<string, unknown>>).map((order) => ({
       ...order,
       payment: paymentByOrder.get(order.id as string) ?? null,
+      platformEarning: earningByOrder.get(order.id as string) ?? null,
     })),
   };
 };
@@ -153,7 +159,7 @@ const getOrders = async (storeId: string, query: Record<string, unknown>) => {
 const getOrder = async (storeId: string, id: string) => {
   const order = await prisma.order.findFirst({
     where: { id, storeId },
-    include: { payment: true },
+    include: { payment: true, platformEarning: true },
   });
   if (!order) throw new AppError(StatusCodes.NOT_FOUND, "Order not found");
   return order;
@@ -165,15 +171,25 @@ const updateOrderStatus = async (
   status: OrderStatus,
   tracking?: { trackingNumber?: string | null; trackingCarrier?: string | null },
 ) => {
-  await getOrder(storeId, id);
-  return prisma.order.update({
+  const existing = await getOrder(storeId, id);
+  const order = await prisma.order.update({
     where: { id },
     data: {
       status,
       ...(tracking?.trackingNumber !== undefined ? { trackingNumber: tracking.trackingNumber } : {}),
       ...(tracking?.trackingCarrier !== undefined ? { trackingCarrier: tracking.trackingCarrier } : {}),
     },
+    include: { payment: true, platformEarning: true },
   });
+
+  await CommissionService.onOrderStatusChanged(id, existing.status, status);
+
+  const refreshed = await prisma.order.findFirst({
+    where: { id, storeId },
+    include: { payment: true, platformEarning: true },
+  });
+
+  return refreshed ?? order;
 };
 
 const getOrderStats = async (storeId: string) => {

@@ -7,3 +7,9 @@
 {"sessionId":"4cfb43","hypothesisId":"H1","location":"chatbot.controller.ts:chat","message":"chat handler reached (passed rate limiter)","data":{"messageLen":2,"historyLen":2},"timestamp":1783335067468}
 {"sessionId":"4cfb43","hypothesisId":"H2","location":"openrouter.client.ts:withRateLimitRetry","message":"OpenRouter 429 after retries","data":{"attempts":3},"timestamp":1783335069668}
 {"sessionId":"4cfb43","runId":"post-fix","hypothesisId":"H2","location":"chatbot.controller.ts:chat:success","message":"chat handler completed","data":{"replyLen":265,"sourceCount":5},"timestamp":1783335069670}
+{"sessionId":"4cfb43","hypothesisId":"H4","location":"chatbotRateLimiter.ts:skip","message":"skip evaluated","data":{"shouldSkip":true,"isDev":true,"nodeEnv":"development","ip":"::1"},"timestamp":1783335866048}
+{"sessionId":"4cfb43","hypothesisId":"H1","location":"chatbot.controller.ts:chat","message":"chat handler reached (passed rate limiter)","data":{"messageLen":22,"historyLen":0},"timestamp":1783335866049}
+{"sessionId":"4cfb43","hypothesisId":"H2","location":"openrouter.client.ts:withRateLimitRetry","message":"OpenRouter 429 after retries","data":{"attempts":3},"timestamp":1783335869140}
+{"sessionId":"4cfb43","runId":"post-fix","hypothesisId":"H2","location":"chatbot.controller.ts:chat:success","message":"chat handler completed","data":{"replyLen":265,"sourceCount":5},"timestamp":1783335869141}
+{"sessionId":"4cfb43","hypothesisId":"H1","location":"chatbotRateLimiter.ts:init","message":"chatbot limiter config at module load","data":{"isDev":true,"nodeEnv":"development","maxRequests":60,"windowMs":900000},"timestamp":1783335937966}
+{"sessionId":"4cfb43","hypothesisId":"H1","location":"chatbotRateLimiter.ts:init","message":"chatbot limiter config at module load","data":{"isDev":true,"nodeEnv":"development","maxRequests":60,"windowMs":900000},"timestamp":1783335989528}

@@ -1,0 +1,38 @@
+model PlatformSettings {
+  id              String         @id @default("default")
+  isEnabled       Boolean        @default(true)
+  commissionType  CommissionType @default(PERCENT)
+  commissionValue Float          @default(2.5)
+  commissionBase  CommissionBase @default(SUBTOTAL)
+  triggerStatus   OrderStatus    @default(CONFIRMED)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@map("platform_settings")
+}
+
+model PlatformEarning {
+  id               String                @id @default(uuid())
+  storeId          String
+  orderId          String                @unique
+  orderNumber      String
+  orderAmount      Float
+  commissionRate   Float
+  commissionAmount Float
+  commissionType   CommissionType
+  commissionBase   CommissionBase
+  currency         String                @default("USD")
+  status           PlatformEarningStatus @default(EARNED)
+  earnedAt         DateTime              @default(now())
+  reversedAt       DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([status])
+  @@index([earnedAt])
+  @@map("platform_earnings")
+}

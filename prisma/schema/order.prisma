@@ -21,6 +21,7 @@ model Order {
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
   payment Payment?
+  platformEarning PlatformEarning?
 
   @@unique([storeId, orderNumber])
   @@index([storeId])
