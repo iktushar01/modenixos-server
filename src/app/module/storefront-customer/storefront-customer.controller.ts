@@ -59,4 +59,37 @@ const me = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-export const StorefrontCustomerController = { register, login, logout, me };
+const sendOtp = catchAsync(async (req: Request, res: Response) => {
+  const store = await StoreService.getPublicStoreBySlug(req.params.slug as string);
+  await StorefrontCustomerService.sendOtp(store.id, store.brandName, req.body);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Verification code sent",
+  });
+});
+
+const verifyOtp = catchAsync(async (req: Request, res: Response) => {
+  const store = await StoreService.getPublicStoreBySlug(req.params.slug as string);
+  const result = await StorefrontCustomerService.verifyOtp(
+    store.id,
+    store.slug,
+    req.body,
+    res,
+  );
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Verified",
+    data: result,
+  });
+});
+
+export const StorefrontCustomerController = {
+  register,
+  login,
+  logout,
+  me,
+  sendOtp,
+  verifyOtp,
+};

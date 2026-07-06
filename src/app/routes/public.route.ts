@@ -17,6 +17,8 @@ import { validateCouponZodSchema } from "../module/coupon/coupon.validation";
 import {
   registerStorefrontCustomerSchema,
   loginStorefrontCustomerSchema,
+  sendStorefrontOtpSchema,
+  verifyStorefrontOtpSchema,
   addWishlistSchema,
 } from "../module/storefront-customer/storefront-customer.validation";
 import { requireStorefrontCustomer } from "../middleware/storefrontCustomerAuth";
@@ -154,6 +156,18 @@ storeRouter.post(
   "/customers/login",
   validateRequest(loginStorefrontCustomerSchema),
   StorefrontCustomerController.login,
+);
+
+storeRouter.post(
+  "/customers/otp/send",
+  validateRequest(sendStorefrontOtpSchema),
+  StorefrontCustomerController.sendOtp,
+);
+
+storeRouter.post(
+  "/customers/otp/verify",
+  validateRequest(verifyStorefrontOtpSchema),
+  StorefrontCustomerController.verifyOtp,
 );
 
 storeRouter.post("/customers/logout", StorefrontCustomerController.logout);
