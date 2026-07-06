@@ -13,3 +13,4 @@
 {"sessionId":"4cfb43","runId":"post-fix","hypothesisId":"H2","location":"chatbot.controller.ts:chat:success","message":"chat handler completed","data":{"replyLen":265,"sourceCount":5},"timestamp":1783335869141}
 {"sessionId":"4cfb43","hypothesisId":"H1","location":"chatbotRateLimiter.ts:init","message":"chatbot limiter config at module load","data":{"isDev":true,"nodeEnv":"development","maxRequests":60,"windowMs":900000},"timestamp":1783335937966}
 {"sessionId":"4cfb43","hypothesisId":"H1","location":"chatbotRateLimiter.ts:init","message":"chatbot limiter config at module load","data":{"isDev":true,"nodeEnv":"development","maxRequests":60,"windowMs":900000},"timestamp":1783335989528}
+{"sessionId":"4cfb43","hypothesisId":"H1","location":"chatbotRateLimiter.ts:init","message":"chatbot limiter config at module load","data":{"isDev":true,"nodeEnv":"development","maxRequests":60,"windowMs":900000},"timestamp":1783336146819}
