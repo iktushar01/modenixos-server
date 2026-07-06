@@ -24,6 +24,22 @@ const chat = catchAsync(async (req: Request, res: Response) => {
   // #endregion
   const result = await ChatbotService.chat(message, history ?? []);
 
+  // #region agent log
+  fetch("http://127.0.0.1:7520/ingest/ad77b84b-eaea-40fc-9651-0b3ce1c650f2", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "4cfb43" },
+    body: JSON.stringify({
+      sessionId: "4cfb43",
+      runId: "post-fix",
+      hypothesisId: "H2",
+      location: "chatbot.controller.ts:chat:success",
+      message: "chat handler completed",
+      data: { replyLen: result.reply.length, sourceCount: result.sources.length },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,

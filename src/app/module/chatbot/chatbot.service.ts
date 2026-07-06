@@ -4,7 +4,7 @@ import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
 import { CHATBOT_KNOWLEDGE } from "./chatbot.knowledge";
 import { cosineSimilarity, parseEmbedding } from "./chatbot.utils";
-import { createChatCompletion, createEmbedding } from "./openrouter.client";
+import { createChatCompletion, createEmbedding, OpenRouterRateLimitError } from "./openrouter.client";
 
 export type ChatHistoryMessage = {
   role: "user" | "assistant";
@@ -85,6 +85,50 @@ async function retrieveRelevantChunks(queryEmbedding: number[]): Promise<Retriev
   return selected;
 }
 
+function retrieveByKeywords(message: string): RetrievedChunk[] {
+  const tokens = message.toLowerCase().split(/\W+/).filter((token) => token.length > 2);
+  const scored = CHATBOT_KNOWLEDGE.map((item) => {
+    const haystack = `${item.title} ${item.content}`.toLowerCase();
+    const score = tokens.reduce((acc, token) => acc + (haystack.includes(token) ? 1 : 0), 0);
+    return {
+      title: item.title,
+      content: item.content,
+      category: item.category,
+      score,
+    };
+  })
+    .filter((row) => row.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (scored.length > 0) {
+    return scored.slice(0, chatbotConfig.topK);
+  }
+
+  return CHATBOT_KNOWLEDGE.slice(0, chatbotConfig.topK).map((item) => ({
+    title: item.title,
+    content: item.content,
+    category: item.category,
+    score: 0,
+  }));
+}
+
+function buildFallbackReply(chunks: RetrievedChunk[]): string {
+  const top = chunks[0];
+  if (!top) {
+    return "I'm a bit busy right now. Visit /register to start your store or /#pricing to compare plans.";
+  }
+
+  return `${top.content}\n\n(Using a quick answer while the AI service is busy — send another message in a minute for a fuller reply.)`;
+}
+
+function formatChatResult(message: string, chunks: RetrievedChunk[], reply: string) {
+  return {
+    reply,
+    actions: buildActions(message),
+    sources: chunks.map((c) => ({ title: c.title, category: c.category })),
+  };
+}
+
 function buildContextBlock(chunks: RetrievedChunk[]): string {
   if (chunks.length === 0) {
     return "No matching knowledge base entries were found.";
@@ -151,11 +195,40 @@ export const ChatbotService = {
 
     const chunkCount = await prisma.chatbotKnowledgeChunk.count();
     if (chunkCount === 0) {
-      await seedChatbotKnowledge();
+      try {
+        await seedChatbotKnowledge();
+      } catch (error) {
+        if (!(error instanceof OpenRouterRateLimitError)) throw error;
+      }
     }
 
-    const queryEmbedding = await createEmbedding(message);
-    const chunks = await retrieveRelevantChunks(queryEmbedding);
+    let chunks: RetrievedChunk[];
+    try {
+      const queryEmbedding = await createEmbedding(message);
+      chunks = await retrieveRelevantChunks(queryEmbedding);
+    } catch (error) {
+      if (error instanceof OpenRouterRateLimitError) {
+        chunks = retrieveByKeywords(message);
+        // #region agent log
+        fetch("http://127.0.0.1:7520/ingest/ad77b84b-eaea-40fc-9651-0b3ce1c650f2", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "4cfb43" },
+          body: JSON.stringify({
+            sessionId: "4cfb43",
+            runId: "post-fix",
+            hypothesisId: "H2",
+            location: "chatbot.service.ts:embeddingFallback",
+            message: "using keyword fallback after embedding rate limit",
+            data: { chunkCount: chunks.length },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {});
+        // #endregion
+        return formatChatResult(message, chunks, buildFallbackReply(chunks));
+      }
+      throw error;
+    }
+
     const context = buildContextBlock(chunks);
 
     const historyMessages = history.slice(-6).map((entry) => ({
@@ -163,21 +236,24 @@ export const ChatbotService = {
       content: entry.content,
     }));
 
-    const reply = await createChatCompletion([
-      { role: "system", content: SYSTEM_PROMPT },
-      {
-        role: "system",
-        content: `Context from knowledge base:\n\n${context}`,
-      },
-      ...historyMessages,
-      { role: "user", content: message },
-    ]);
+    try {
+      const reply = await createChatCompletion([
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "system",
+          content: `Context from knowledge base:\n\n${context}`,
+        },
+        ...historyMessages,
+        { role: "user", content: message },
+      ]);
 
-    return {
-      reply,
-      actions: buildActions(message),
-      sources: chunks.map((c) => ({ title: c.title, category: c.category })),
-    };
+      return formatChatResult(message, chunks, reply);
+    } catch (error) {
+      if (error instanceof OpenRouterRateLimitError) {
+        return formatChatResult(message, chunks, buildFallbackReply(chunks));
+      }
+      throw error;
+    }
   },
 
   getStarterPrompts() {
