@@ -1,0 +1,12 @@
+model ChatbotKnowledgeChunk {
+  id        String   @id @default(uuid())
+  sourceKey String   @unique
+  title     String
+  content   String   @db.Text
+  category  String
+  embedding Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("chatbot_knowledge_chunks")
+}
