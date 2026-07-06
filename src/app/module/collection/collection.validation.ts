@@ -13,3 +13,7 @@ export const createCollectionZodSchema = z.object({
 });
 
 export const updateCollectionZodSchema = createCollectionZodSchema.partial();
+
+export const reorderCollectionsZodSchema = z.object({
+  collectionIds: z.array(z.string().uuid()).min(1),
+});

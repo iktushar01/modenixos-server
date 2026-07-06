@@ -48,4 +48,15 @@ const remove = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Category deleted" });
 });
 
-export const CategoryController = { create, getAll, getOne, update, remove };
+const reorder = catchAsync(async (req: Request, res: Response) => {
+  const { categoryIds } = req.body as { categoryIds: string[] };
+  const result = await CategoryService.reorderCategories(req.storeId!, categoryIds);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Category order updated",
+    data: result,
+  });
+});
+
+export const CategoryController = { create, getAll, getOne, update, remove, reorder };

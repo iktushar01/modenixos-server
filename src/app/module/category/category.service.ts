@@ -38,6 +38,11 @@ const createCategory = async (
   const parentId = optionalParentId(payload.parentId) ?? null;
   await assertValidParent(storeId, parentId);
 
+  const maxSort = await prisma.category.aggregate({
+    where: { storeId, parentId },
+    _max: { sortOrder: true },
+  });
+
   let image = payload.image;
   if (imageBuffer && imageName) {
     const result = await uploadFileToCloudinary(imageBuffer, imageName);
@@ -52,6 +57,7 @@ const createCategory = async (
         name: payload.name,
         slug,
         image: image ?? null,
+        sortOrder: (maxSort._max.sortOrder ?? -1) + 1,
       },
     });
   } catch {
@@ -60,7 +66,13 @@ const createCategory = async (
 };
 
 const getCategories = async (storeId: string, query: Record<string, unknown>) => {
-  return new QueryBuilder(prisma.category as any, query, {
+  const params = {
+    ...query,
+    sortBy: query.sortBy ?? "sortOrder",
+    sortOrder: query.sortOrder ?? "asc",
+  };
+
+  return new QueryBuilder(prisma.category as any, params, {
     searchableFields: ["name", "slug"],
     filterableFields: ["parentId"],
   })
@@ -130,10 +142,44 @@ const deleteCategory = async (storeId: string, id: string) => {
   await prisma.category.delete({ where: { id } });
 };
 
+const reorderCategories = async (storeId: string, categoryIds: string[]) => {
+  const uniqueIds = [...new Set(categoryIds)];
+  if (uniqueIds.length === 0) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "Category order cannot be empty");
+  }
+
+  const owned = await prisma.category.findMany({
+    where: { storeId, id: { in: uniqueIds } },
+    select: { id: true, parentId: true },
+  });
+
+  if (owned.length !== uniqueIds.length) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "One or more categories are invalid");
+  }
+
+  const parentKey = owned[0]?.parentId ?? null;
+  const sameParent = owned.every((c) => (c.parentId ?? null) === parentKey);
+  if (!sameParent) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "Categories must share the same parent");
+  }
+
+  await prisma.$transaction(
+    uniqueIds.map((id, index) =>
+      prisma.category.update({
+        where: { id },
+        data: { sortOrder: index },
+      }),
+    ),
+  );
+
+  return { updated: uniqueIds.length };
+};
+
 export const CategoryService = {
   createCategory,
   getCategories,
   getCategory,
   updateCategory,
   deleteCategory,
+  reorderCategories,
 };

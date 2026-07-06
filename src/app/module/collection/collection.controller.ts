@@ -31,4 +31,15 @@ const remove = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Collection deleted" });
 });
 
-export const CollectionController = { create, getAll, getOne, update, remove };
+const reorder = catchAsync(async (req: Request, res: Response) => {
+  const { collectionIds } = req.body as { collectionIds: string[] };
+  const result = await CollectionService.reorderCollections(req.storeId!, collectionIds);
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: "Collection order updated",
+    data: result,
+  });
+});
+
+export const CollectionController = { create, getAll, getOne, update, remove, reorder };

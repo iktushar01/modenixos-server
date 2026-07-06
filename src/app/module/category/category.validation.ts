@@ -18,3 +18,7 @@ export const createCategoryZodSchema = z.object({
 });
 
 export const updateCategoryZodSchema = createCategoryZodSchema.partial();
+
+export const reorderCategoriesZodSchema = z.object({
+  categoryIds: z.array(z.string().uuid()).min(1),
+});

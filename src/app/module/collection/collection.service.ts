@@ -12,6 +12,11 @@ const createCollection = async (
   imageName?: string,
 ) => {
   const slug = payload.slug ?? slugify(payload.name);
+  const maxSort = await prisma.collection.aggregate({
+    where: { storeId },
+    _max: { sortOrder: true },
+  });
+
   let image = payload.image;
   if (imageBuffer && imageName) {
     const result = await uploadFileToCloudinary(imageBuffer, imageName);
@@ -19,7 +24,7 @@ const createCollection = async (
   }
   try {
     return await prisma.collection.create({
-      data: { storeId, name: payload.name, slug, image: image ?? null, isFeatured: payload.isFeatured ?? false },
+      data: { storeId, name: payload.name, slug, image: image ?? null, isFeatured: payload.isFeatured ?? false, sortOrder: (maxSort._max.sortOrder ?? -1) + 1 },
     });
   } catch {
     throw new AppError(StatusCodes.CONFLICT, "Collection slug already exists");
@@ -27,7 +32,13 @@ const createCollection = async (
 };
 
 const getCollections = async (storeId: string, query: Record<string, unknown>) => {
-  return new QueryBuilder(prisma.collection as any, query, {
+  const params = {
+    ...query,
+    sortBy: query.sortBy ?? "sortOrder",
+    sortOrder: query.sortOrder ?? "asc",
+  };
+
+  return new QueryBuilder(prisma.collection as any, params, {
     searchableFields: ["name", "slug"],
     filterableFields: ["isFeatured"],
   })
@@ -81,10 +92,38 @@ const deleteCollection = async (storeId: string, id: string) => {
   await prisma.collection.delete({ where: { id } });
 };
 
+const reorderCollections = async (storeId: string, collectionIds: string[]) => {
+  const uniqueIds = [...new Set(collectionIds)];
+  if (uniqueIds.length === 0) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "Collection order cannot be empty");
+  }
+
+  const owned = await prisma.collection.findMany({
+    where: { storeId, id: { in: uniqueIds } },
+    select: { id: true },
+  });
+
+  if (owned.length !== uniqueIds.length) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "One or more collections are invalid");
+  }
+
+  await prisma.$transaction(
+    uniqueIds.map((id, index) =>
+      prisma.collection.update({
+        where: { id },
+        data: { sortOrder: index },
+      }),
+    ),
+  );
+
+  return { updated: uniqueIds.length };
+};
+
 export const CollectionService = {
   createCollection,
   getCollections,
   getCollection,
   updateCollection,
   deleteCollection,
+  reorderCollections,
 };

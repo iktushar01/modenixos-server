@@ -1,5 +1,5 @@
 import rateLimit from "express-rate-limit";
-import { envVars } from "../../../config/env";
+import { envVars } from "../../config/env";
 
 const isDev = envVars.NODE_ENV === "development";
 
