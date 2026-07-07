@@ -150,7 +150,7 @@ async function getMarketingStats(storeId: string, from: Date, to: Date) {
         _sum: { discount: true },
       }),
       prisma.newsletterSubscriber.count({
-        where: { storeId, status: "ACTIVE", createdAt: { gte: from, lt: to } },
+        where: { storeId, status: "ACTIVE", subscribedAt: { gte: from, lt: to } },
       }),
       prisma.newsletterSend.count({
         where: {
@@ -369,18 +369,6 @@ const getOverview = async (storeId: string, rangeKey: AnalyticsRangeKey = "30d")
 };
 
 const getCharts = async (storeId: string, rangeKey: AnalyticsRangeKey = "30d") => {
-  const plan = await getStorePlan(storeId);
-  const advancedAnalytics = PLAN_LIMITS[plan].advancedAnalytics;
-  if (!advancedAnalytics) {
-    return {
-      monthlyRevenue: [],
-      monthlyOrders: [],
-      dailyRevenue: [],
-      totalOrders: 0,
-      locked: true,
-    };
-  }
-
   const effectiveRange = parseAnalyticsRange(rangeKey);
   const { days } = resolveDateRange(effectiveRange);
   const now = new Date();
@@ -461,7 +449,6 @@ const getCharts = async (storeId: string, rangeKey: AnalyticsRangeKey = "30d") =
     monthlyOrders: buildMonthlySeries(monthlyOrders, "orders"),
     dailyRevenue: buildDailySeries(dailyRevenue),
     totalOrders: orders.length,
-    locked: false,
   };
 };
 
