@@ -58,7 +58,8 @@ const createPublicOrder = async (storeId: string, payload: CheckoutInput & { pay
   }
 
   const calculated = await calculateCheckout(storeId, payload);
-  const invoiceNumber = generateInvoiceNumber(generateOrderNumber());
+  const orderNumber = generateOrderNumber();
+  const invoiceNumber = generateInvoiceNumber(orderNumber);
 
   const order = await prisma.$transaction(async (tx) => {
     if (calculated.couponCode) {
@@ -70,19 +71,10 @@ const createPublicOrder = async (storeId: string, payload: CheckoutInput & { pay
 
     await decrementOrderStock(tx, calculated.lineItems);
 
-    const customer = await upsertCheckoutCustomer(storeId, {
-      email: payload.customerEmail,
-      name: payload.customerName,
-      ...(payload.customerPhone ? { phone: payload.customerPhone } : {}),
-      shippingAddress: payload.shippingAddress,
-      total: calculated.total,
-    });
-
     return tx.order.create({
       data: {
         storeId,
-        customerId: customer.id,
-        orderNumber: generateOrderNumber(),
+        orderNumber,
         invoiceNumber,
         status: OrderStatus.PENDING,
         paymentMethod: method,
@@ -102,19 +94,25 @@ const createPublicOrder = async (storeId: string, payload: CheckoutInput & { pay
     });
   });
 
+  const customer = await upsertCheckoutCustomer(storeId, {
+    email: payload.customerEmail,
+    name: payload.customerName,
+    ...(payload.customerPhone ? { phone: payload.customerPhone } : {}),
+    shippingAddress: payload.shippingAddress,
+    total: calculated.total,
+  });
+
+  const orderWithCustomer = await prisma.order.update({
+    where: { id: order.id },
+    data: { customerId: customer.id },
+    include: { store: { select: { brandName: true, slug: true, currency: true } } },
+  });
+
   const ownerEmail = await getStoreOwnerEmail(storeId);
-  void OrderEmailService.sendOrderPlacedEmail(order);
-  if (ownerEmail) void OrderEmailService.sendOwnerNewOrderEmail(order, ownerEmail);
+  void OrderEmailService.sendOrderPlacedEmail(orderWithCustomer);
+  if (ownerEmail) void OrderEmailService.sendOwnerNewOrderEmail(orderWithCustomer, ownerEmail);
 
-  if (method === "COD") {
-    const confirmed = await updateOrderStatus(storeId, order.id, OrderStatus.CONFIRMED, undefined, {
-      skipTransitionCheck: true,
-      skipEmail: true,
-    });
-    return confirmed ?? order;
-  }
-
-  return order;
+  return orderWithCustomer;
 };
 
 const getOrders = async (storeId: string, query: Record<string, unknown>) => {

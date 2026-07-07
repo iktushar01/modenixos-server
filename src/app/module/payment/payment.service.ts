@@ -2,38 +2,22 @@ import { randomBytes } from "node:crypto";
 import { StatusCodes } from "http-status-codes";
 import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
-import { CouponType, OrderStatus, PaymentStatus, ProductStatus } from "../../lib/prisma-exports";
+import { OrderStatus, PaymentStatus } from "../../lib/prisma-exports";
 import { CommissionService } from "../commission/commission.service";
 import { sslcommerzConfig } from "../../../config/sslcommerz.config";
 import { SslCommerzService } from "./sslcommerz.service";
-
-type CheckoutItemInput = {
-  productId: string;
-  name: string;
-  price: number;
-  quantity: number;
-  size?: string;
-  color?: string;
-  image?: string;
-};
-
-type CheckoutInput = {
-  items: CheckoutItemInput[];
-  customerName: string;
-  customerEmail: string;
-  customerPhone?: string;
-  shippingAddress: {
-    line1: string;
-    line2?: string;
-    city: string;
-    state?: string;
-    postalCode: string;
-    country: string;
-  };
-  couponCode?: string;
-};
-
-const generateOrderNumber = () => `ORD-${Date.now().toString(36).toUpperCase()}`;
+import {
+  calculateCheckout,
+  CheckoutInput,
+  decrementOrderStock,
+  generateInvoiceNumber,
+  generateOrderNumber,
+  parseStorePayments,
+  restoreOrderStock,
+  upsertCheckoutCustomer,
+} from "../order/checkout.service";
+import { appendStatusHistory } from "../order/order-status";
+import { OrderEmailService } from "../order/order-email.service";
 
 const generateTransactionId = () =>
   `MODX-${Date.now().toString(36).toUpperCase()}-${randomBytes(3).toString("hex").toUpperCase()}`;
@@ -70,175 +54,92 @@ const buildStorePaymentStatusUrl = (
     : `${storeFrontendBase(storeSlug)}/payment/${status}`;
 };
 
-const resolveUnitPrice = (product: { price: number; discountPrice: number | null }) =>
-  product.discountPrice != null && product.discountPrice < product.price
-    ? product.discountPrice
-    : product.price;
+const resolveSslCredentials = (storePayments: unknown) => {
+  const settings = parseStorePayments(storePayments);
+  if (settings.sslStoreId && settings.sslStorePassword) {
+    return { storeId: settings.sslStoreId, storePassword: settings.sslStorePassword };
+  }
+  if (!sslcommerzConfig.isConfigured) return null;
+  return {
+    storeId: sslcommerzConfig.storeId,
+    storePassword: sslcommerzConfig.storePassword,
+  };
+};
 
-export const calculateCheckout = async (
+const initSslSession = async (
+  credentials: { storeId: string; storePassword: string },
+  payload: Parameters<typeof SslCommerzService.initPayment>[0],
+) => SslCommerzService.initPayment(payload, credentials);
+
+const createOrderWithPayment = async (
   storeId: string,
   input: CheckoutInput,
-  shippingFee = 5,
+  existingOrder?: { id: string; orderNumber: string; invoiceNumber: string | null },
 ) => {
-  if (!input.items.length) {
-    throw new AppError(StatusCodes.BAD_REQUEST, "Cart is empty");
-  }
+  const calculated = await calculateCheckout(storeId, input);
+  const orderNumber = existingOrder?.orderNumber ?? generateOrderNumber();
+  const invoiceNumber = existingOrder?.invoiceNumber ?? generateInvoiceNumber(orderNumber);
+  const transactionId = generateTransactionId();
 
-  const lineItems: CheckoutItemInput[] = [];
-
-  for (const item of input.items) {
-    const product = await prisma.product.findFirst({
-      where: { id: item.productId, storeId, status: ProductStatus.ACTIVE },
-    });
-    if (!product) {
-      throw new AppError(StatusCodes.BAD_REQUEST, `Product ${item.name} is unavailable`);
-    }
-    if (product.stock < item.quantity) {
-      throw new AppError(StatusCodes.BAD_REQUEST, `Insufficient stock for ${product.name}`);
-    }
-
-    const unitPrice = resolveUnitPrice(product);
-    lineItems.push({
-      productId: product.id,
-      name: product.name,
-      price: unitPrice,
-      quantity: item.quantity,
-      ...(item.size ? { size: item.size } : {}),
-      ...(item.color ? { color: item.color } : {}),
-      ...(item.image ? { image: item.image } : {}),
-    });
-  }
-
-  const subtotal = lineItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  let discount = 0;
-  let couponCode: string | undefined;
-
-  if (input.couponCode) {
-    const coupon = await prisma.coupon.findFirst({
-      where: { storeId, code: input.couponCode.toUpperCase(), isActive: true },
-    });
-    if (!coupon) throw new AppError(StatusCodes.BAD_REQUEST, "Invalid coupon code");
-    if (coupon.expiresAt && coupon.expiresAt < new Date()) {
-      throw new AppError(StatusCodes.BAD_REQUEST, "Coupon has expired");
-    }
-    if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
-      throw new AppError(StatusCodes.BAD_REQUEST, "Coupon usage limit reached");
-    }
-    if (subtotal < coupon.minOrder) {
-      throw new AppError(StatusCodes.BAD_REQUEST, `Minimum order for this coupon is ${coupon.minOrder}`);
-    }
-
-    discount =
-      coupon.type === CouponType.PERCENT
-        ? (subtotal * coupon.value) / 100
-        : Math.min(coupon.value, subtotal);
-    couponCode = coupon.code;
-  }
-
-  const shipping = shippingFee;
-  const total = Math.max(subtotal + shipping - discount, 0.01);
-
-  return { lineItems, subtotal, shipping, discount, total, couponCode };
-};
-
-const upsertCustomer = async (
-  storeId: string,
-  data: { email: string; name: string; phone?: string; shippingAddress: Record<string, unknown>; total: number },
-) => {
-  const existing = await prisma.customer.findUnique({
-    where: { storeId_email: { storeId, email: data.email } },
+  const store = await prisma.store.findUnique({
+    where: { id: storeId },
+    select: { currency: true, payments: true },
   });
-
-  if (existing) {
-    const addresses = Array.isArray(existing.addresses) ? (existing.addresses as unknown[]) : [];
-    return prisma.customer.update({
-      where: { id: existing.id },
-      data: {
-        name: data.name,
-        ...(data.phone ? { phone: data.phone } : {}),
-        orderCount: { increment: 1 },
-        totalSpent: { increment: data.total },
-        addresses: [...addresses, data.shippingAddress] as object,
-      },
-    });
-  }
-
-  return prisma.customer.create({
-    data: {
-      storeId,
-      email: data.email,
-      name: data.name,
-      phone: data.phone ?? null,
-      orderCount: 1,
-      totalSpent: data.total,
-      addresses: [data.shippingAddress] as object,
-    },
-  });
-};
-
-const restoreOrderStock = async (orderId: string) => {
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
-  if (!order) return;
-
-  const items = order.items as CheckoutItemInput[];
-  await prisma.$transaction(
-    items.map((item) =>
-      prisma.product.update({
-        where: { id: item.productId },
-        data: { stock: { increment: item.quantity } },
-      }),
-    ),
-  );
-};
-
-const createSslCommerzCheckout = async (storeId: string, storeSlug: string, input: CheckoutInput) => {
-  if (!sslcommerzConfig.isConfigured) {
-    throw new AppError(
-      StatusCodes.SERVICE_UNAVAILABLE,
-      "SSLCommerz is not configured. Add SSLC_STORE_ID and SSLC_STORE_PASSWORD.",
-    );
-  }
-
-  const store = await prisma.store.findUnique({ where: { id: storeId } });
   if (!store) throw new AppError(StatusCodes.NOT_FOUND, "Store not found");
 
-  const calculated = await calculateCheckout(storeId, input);
-  const transactionId = generateTransactionId();
   const currency = store.currency === "BDT" ? "BDT" : "BDT";
 
   const { order, payment } = await prisma.$transaction(async (tx) => {
-    if (calculated.couponCode) {
+    if (calculated.couponCode && !existingOrder) {
       await tx.coupon.updateMany({
         where: { storeId, code: calculated.couponCode },
         data: { usedCount: { increment: 1 } },
       });
     }
 
-    for (const item of calculated.lineItems) {
-      await tx.product.update({
-        where: { id: item.productId },
-        data: { stock: { decrement: item.quantity } },
-      });
+    if (!existingOrder) {
+      await decrementOrderStock(tx, calculated.lineItems);
     }
 
-    const createdOrder = await tx.order.create({
-      data: {
-        storeId,
-        orderNumber: generateOrderNumber(),
-        status: OrderStatus.PENDING,
-        paymentMethod: "SSLCOMMERZ",
-        items: calculated.lineItems as object,
-        customerName: input.customerName,
-        customerEmail: input.customerEmail.toLowerCase(),
-        customerPhone: input.customerPhone ?? null,
-        shippingAddress: input.shippingAddress as object,
-        subtotal: calculated.subtotal,
-        shipping: calculated.shipping,
-        discount: calculated.discount,
-        total: calculated.total,
-        couponCode: calculated.couponCode ?? null,
-      },
-    });
+    const createdOrder = existingOrder
+      ? await tx.order.update({
+          where: { id: existingOrder.id },
+          data: {
+            status: OrderStatus.PENDING,
+            paymentMethod: "SSLCOMMERZ",
+            items: calculated.lineItems as object,
+            customerName: input.customerName,
+            customerEmail: input.customerEmail.toLowerCase(),
+            customerPhone: input.customerPhone ?? null,
+            shippingAddress: input.shippingAddress as object,
+            subtotal: calculated.subtotal,
+            shipping: calculated.shipping,
+            discount: calculated.discount,
+            total: calculated.total,
+            couponCode: calculated.couponCode ?? null,
+            statusHistory: appendStatusHistory([], OrderStatus.PENDING, "Payment retry") as object,
+          },
+        })
+      : await tx.order.create({
+          data: {
+            storeId,
+            orderNumber,
+            invoiceNumber,
+            status: OrderStatus.PENDING,
+            paymentMethod: "SSLCOMMERZ",
+            items: calculated.lineItems as object,
+            customerName: input.customerName,
+            customerEmail: input.customerEmail.toLowerCase(),
+            customerPhone: input.customerPhone ?? null,
+            shippingAddress: input.shippingAddress as object,
+            subtotal: calculated.subtotal,
+            shipping: calculated.shipping,
+            discount: calculated.discount,
+            total: calculated.total,
+            couponCode: calculated.couponCode ?? null,
+            statusHistory: appendStatusHistory([], OrderStatus.PENDING, "Order placed") as object,
+          },
+        });
 
     const createdPayment = await tx.payment.create({
       data: {
@@ -254,13 +155,56 @@ const createSslCommerzCheckout = async (storeId: string, storeSlug: string, inpu
     return { order: createdOrder, payment: createdPayment };
   });
 
-  await upsertCustomer(storeId, {
-    email: input.customerEmail,
-    name: input.customerName,
-    ...(input.customerPhone ? { phone: input.customerPhone } : {}),
-    shippingAddress: input.shippingAddress,
-    total: calculated.total,
-  });
+  if (!existingOrder) {
+    const customer = await upsertCheckoutCustomer(storeId, {
+      email: input.customerEmail,
+      name: input.customerName,
+      ...(input.customerPhone ? { phone: input.customerPhone } : {}),
+      shippingAddress: input.shippingAddress,
+      total: calculated.total,
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { customerId: customer.id } });
+
+    const orderWithStore = await prisma.order.findUnique({
+      where: { id: order.id },
+      include: { store: { select: { brandName: true, slug: true, currency: true } } },
+    });
+    if (orderWithStore) {
+      void OrderEmailService.sendOrderPlacedEmail(orderWithStore);
+      const owner = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { owner: { select: { email: true } } },
+      });
+      if (owner?.owner.email) {
+        void OrderEmailService.sendOwnerNewOrderEmail(orderWithStore, owner.owner.email);
+      }
+    }
+  }
+
+  return { order, payment, calculated, currency, transactionId };
+};
+
+const createSslCommerzCheckout = async (storeId: string, storeSlug: string, input: CheckoutInput) => {
+  const store = await prisma.store.findUnique({ where: { id: storeId } });
+  if (!store) throw new AppError(StatusCodes.NOT_FOUND, "Store not found");
+
+  const paymentSettings = parseStorePayments(store.payments);
+  if (paymentSettings.sslEnabled === false) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "Online payment is not available for this store");
+  }
+
+  const credentials = resolveSslCredentials(store.payments);
+  if (!credentials) {
+    throw new AppError(
+      StatusCodes.SERVICE_UNAVAILABLE,
+      "SSLCommerz is not configured. Add SSLC_STORE_ID and SSLC_STORE_PASSWORD.",
+    );
+  }
+
+  const { order, payment, calculated, currency, transactionId } = await createOrderWithPayment(
+    storeId,
+    input,
+  );
 
   const shipName = input.customerName.trim() || "Customer";
   const shipAddress = input.shippingAddress.line1.trim() || "N/A";
@@ -269,7 +213,7 @@ const createSslCommerzCheckout = async (storeId: string, storeSlug: string, inpu
   const shipPostcode = input.shippingAddress.postalCode.trim() || "1000";
   const shipCountry = input.shippingAddress.country.trim() || "Bangladesh";
 
-  const initResponse = await SslCommerzService.initPayment({
+  const initResponse = await initSslSession(credentials, {
     total_amount: calculated.total,
     currency,
     tran_id: transactionId,
@@ -324,12 +268,6 @@ const createSslCommerzCheckout = async (storeId: string, storeSlug: string, inpu
     data: { gatewayResponse: initResponse as object },
   });
 
-  console.info("[payment] SSLCommerz session initialized", {
-    orderId: order.id,
-    transactionId,
-    amount: calculated.total,
-  });
-
   return {
     paymentUrl: initResponse.GatewayPageURL,
     orderId: order.id,
@@ -338,11 +276,39 @@ const createSslCommerzCheckout = async (storeId: string, storeSlug: string, inpu
   };
 };
 
+const createSslCommerzCheckoutForOrder = async (
+  storeId: string,
+  storeSlug: string,
+  order: {
+    id: string;
+    orderNumber: string;
+    invoiceNumber: string | null;
+    customerName: string;
+    customerEmail: string;
+    customerPhone: string | null;
+    shippingAddress: unknown;
+    items: unknown;
+    couponCode: string | null;
+  },
+) => {
+  const items = order.items as CheckoutInput["items"];
+  const shippingAddress = order.shippingAddress as CheckoutInput["shippingAddress"];
+
+  return createSslCommerzCheckout(storeId, storeSlug, {
+    items,
+    customerName: order.customerName,
+    customerEmail: order.customerEmail,
+    customerPhone: order.customerPhone ?? undefined,
+    shippingAddress,
+    ...(order.couponCode ? { couponCode: order.couponCode } : {}),
+  });
+};
+
 const findPaymentByCallback = async (tranId?: string, orderId?: string) => {
   if (tranId) {
     const payment = await prisma.payment.findUnique({
       where: { transactionId: tranId },
-      include: { order: { include: { store: { select: { slug: true } } } } },
+      include: { order: { include: { store: { select: { slug: true, payments: true } } } } },
     });
     if (payment) return payment;
   }
@@ -350,7 +316,7 @@ const findPaymentByCallback = async (tranId?: string, orderId?: string) => {
   if (orderId) {
     const payment = await prisma.payment.findUnique({
       where: { orderId },
-      include: { order: { include: { store: { select: { slug: true } } } } },
+      include: { order: { include: { store: { select: { slug: true, payments: true } } } } },
     });
     if (payment) return payment;
   }
@@ -382,7 +348,11 @@ const markPaymentPaid = async (
 
     await tx.order.update({
       where: { id: payment.orderId },
-      data: { status: OrderStatus.CONFIRMED, paymentMethod: "SSLCOMMERZ" },
+      data: {
+        status: OrderStatus.CONFIRMED,
+        paymentMethod: "SSLCOMMERZ",
+        statusHistory: appendStatusHistory([], OrderStatus.CONFIRMED, "Payment received") as object,
+      },
     });
 
     return { payment, wasAlreadyPaid: false };
@@ -394,6 +364,15 @@ const markPaymentPaid = async (
       OrderStatus.PENDING,
       OrderStatus.CONFIRMED,
     );
+
+    const emailOrder = await prisma.order.findUnique({
+      where: { id: result.payment.orderId },
+      include: { store: { select: { brandName: true, slug: true, currency: true } } },
+    });
+    const paidPayment = await prisma.payment.findUnique({ where: { id: paymentId } });
+    if (emailOrder && paidPayment) {
+      void OrderEmailService.sendPaymentReceiptEmail(emailOrder, paidPayment);
+    }
   }
 
   return prisma.payment.findUnique({
@@ -461,14 +440,12 @@ const processSuccessCallback = async (payload: Record<string, string>) => {
     throw new AppError(StatusCodes.BAD_REQUEST, "Missing validation id");
   }
 
-  const validation = await SslCommerzService.validatePayment(valId);
-  const isValid = validation.status === "VALID" || validation.status === "VALIDATED";
-
-  console.info("[payment] SSLCommerz validation response", {
-    tranId,
+  const credentials = resolveSslCredentials(payment.order.store.payments);
+  const validation = await SslCommerzService.validatePayment(
     valId,
-    status: validation.status,
-  });
+    credentials ?? undefined,
+  );
+  const isValid = validation.status === "VALID" || validation.status === "VALIDATED";
 
   if (!isValid || validation.tran_id !== payment.transactionId) {
     await markPaymentFailed(payment.id, { ...payload, validation });
@@ -559,7 +536,11 @@ const processIpnCallback = async (payload: Record<string, string>) => {
     return { ok: true, message: "Already processed" };
   }
 
-  const validation = await SslCommerzService.validatePayment(valId);
+  const credentials = resolveSslCredentials(payment.order.store.payments);
+  const validation = await SslCommerzService.validatePayment(
+    valId,
+    credentials ?? undefined,
+  );
   const isValid = validation.status === "VALID" || validation.status === "VALIDATED";
 
   if (isValid && validation.tran_id === payment.transactionId) {
@@ -582,6 +563,7 @@ const getPaymentByOrderNumber = async (storeId: string, orderNumber: string) => 
 export const PaymentService = {
   calculateCheckout,
   createSslCommerzCheckout,
+  createSslCommerzCheckoutForOrder,
   processSuccessCallback,
   processFailCallback,
   processCancelCallback,
