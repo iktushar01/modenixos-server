@@ -1,0 +1,19 @@
+model StorefrontEvent {
+  id        String   @id @default(uuid())
+  storeId   String
+  sessionId String
+  visitorId String
+  event     String
+  path      String?
+  productId String?
+  referrer  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, createdAt])
+  @@index([storeId, event, createdAt])
+  @@index([storeId, visitorId])
+  @@map("storefront_events")
+}

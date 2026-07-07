@@ -36,6 +36,7 @@ model Store {
   platformEarnings PlatformEarning[]
   newsletterSubscribers NewsletterSubscriber[]
   newsletterCampaigns   NewsletterCampaign[]
+  storefrontEvents      StorefrontEvent[]
 
   @@index([slug])
   @@index([isPublished])

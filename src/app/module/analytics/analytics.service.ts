@@ -1,27 +1,18 @@
 import { prisma } from "../../lib/prisma";
 import { OrderStatus, ProductStatus } from "../../lib/prisma-exports";
+import { PLAN_LIMITS } from "../../../config/planLimits";
+import { getStorePlan } from "../../utils/planEnforcement";
+import {
+  AnalyticsRangeKey,
+  dayKey,
+  monthKey,
+  parseAnalyticsRange,
+  pctChange,
+  resolveDateRange,
+} from "./analytics.date-range";
+import { StorefrontEventService } from "./storefront-event.service";
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-function pctChange(current: number, previous: number): number | null {
-  if (previous === 0) return current > 0 ? 100 : null;
-  return ((current - previous) / previous) * 100;
-}
-
-/** Local calendar month key — avoids UTC shift (e.g. July 1 BD → June in ISO). */
-function monthKey(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
-}
-
-/** Local calendar day key. */
-function dayKey(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+type StatusHistoryEntry = { status: string; at: string };
 
 async function getPeriodMetrics(storeId: string, from: Date, to: Date) {
   const orderWhere = {
@@ -30,7 +21,7 @@ async function getPeriodMetrics(storeId: string, from: Date, to: Date) {
     createdAt: { gte: from, lt: to },
   };
 
-  const [revenueAgg, orders, newCustomers] = await Promise.all([
+  const [revenueAgg, orders, newCustomers, visitors] = await Promise.all([
     prisma.order.aggregate({
       where: orderWhere,
       _sum: { total: true },
@@ -39,18 +30,236 @@ async function getPeriodMetrics(storeId: string, from: Date, to: Date) {
     prisma.customer.count({
       where: { storeId, createdAt: { gte: from, lt: to } },
     }),
+    StorefrontEventService.countUniqueVisitors(storeId, from, to),
   ]);
 
   const revenue = revenueAgg._sum.total ?? 0;
   const aov = orders > 0 ? revenue / orders : 0;
+  const conversionRate = visitors > 0 ? Math.round((orders / visitors) * 1000) / 10 : null;
 
-  return { revenue, orders, newCustomers, aov };
+  return { revenue, orders, newCustomers, aov, visitors, conversionRate };
 }
 
-const getOverview = async (storeId: string) => {
+async function getTopCustomers(storeId: string, from: Date, to: Date) {
+  const orders = await prisma.order.findMany({
+    where: {
+      storeId,
+      status: { not: OrderStatus.CANCELLED },
+      createdAt: { gte: from, lt: to },
+    },
+    select: {
+      customerEmail: true,
+      customerName: true,
+      total: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "desc" },
+    take: 500,
+  });
+
+  const byEmail = new Map<
+    string,
+    { email: string; name: string; orderCount: number; revenue: number; lastOrderAt: string }
+  >();
+
+  for (const order of orders) {
+    const key = order.customerEmail.toLowerCase();
+    const existing = byEmail.get(key);
+    if (!existing) {
+      byEmail.set(key, {
+        email: order.customerEmail,
+        name: order.customerName,
+        orderCount: 1,
+        revenue: order.total,
+        lastOrderAt: order.createdAt.toISOString(),
+      });
+      continue;
+    }
+    existing.orderCount += 1;
+    existing.revenue += order.total;
+    if (order.createdAt.toISOString() > existing.lastOrderAt) {
+      existing.lastOrderAt = order.createdAt.toISOString();
+      existing.name = order.customerName;
+    }
+  }
+
+  return [...byEmail.values()]
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 10);
+}
+
+async function getPaymentMethodBreakdown(storeId: string, from: Date, to: Date) {
+  const groups = await prisma.order.groupBy({
+    by: ["paymentMethod"],
+    where: {
+      storeId,
+      status: { not: OrderStatus.CANCELLED },
+      createdAt: { gte: from, lt: to },
+    },
+    _count: { _all: true },
+    _sum: { total: true },
+  });
+
+  return groups
+    .map((group) => ({
+      method: group.paymentMethod,
+      count: group._count._all,
+      revenue: group._sum.total ?? 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+}
+
+async function getGeoBreakdown(storeId: string, from: Date, to: Date) {
+  const orders = await prisma.order.findMany({
+    where: {
+      storeId,
+      status: { not: OrderStatus.CANCELLED },
+      createdAt: { gte: from, lt: to },
+    },
+    select: { shippingAddress: true, total: true },
+    take: 1000,
+  });
+
+  const byCountry = new Map<string, { country: string; orders: number; revenue: number }>();
+
+  for (const order of orders) {
+    const address = order.shippingAddress as { country?: string } | null;
+    const country = (address?.country?.trim() || "Unknown").slice(0, 64);
+    const entry = byCountry.get(country) ?? { country, orders: 0, revenue: 0 };
+    entry.orders += 1;
+    entry.revenue += order.total;
+    byCountry.set(country, entry);
+  }
+
+  return [...byCountry.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 10);
+}
+
+async function getMarketingStats(storeId: string, from: Date, to: Date) {
+  const orderWhere = {
+    storeId,
+    status: { not: OrderStatus.CANCELLED },
+    createdAt: { gte: from, lt: to },
+    couponCode: { not: null },
+  };
+
+  const [couponOrders, discountAgg, newsletterSubscribers, newsletterCampaignsSent] =
+    await Promise.all([
+      prisma.order.count({ where: orderWhere }),
+      prisma.order.aggregate({
+        where: orderWhere,
+        _sum: { discount: true },
+      }),
+      prisma.newsletterSubscriber.count({
+        where: { storeId, status: "ACTIVE", createdAt: { gte: from, lt: to } },
+      }),
+      prisma.newsletterSend.count({
+        where: {
+          campaign: { storeId },
+          status: "SENT",
+          sentAt: { gte: from, lt: to },
+        },
+      }),
+    ]);
+
+  const [totalSubscribers, totalCampaigns] = await Promise.all([
+    prisma.newsletterSubscriber.count({ where: { storeId, status: "ACTIVE" } }),
+    prisma.newsletterCampaign.count({ where: { storeId } }),
+  ]);
+
+  return {
+    couponRedemptions: couponOrders,
+    couponDiscountTotal: discountAgg._sum.discount ?? 0,
+    newsletterSubscribersNew: newsletterSubscribers,
+    newsletterCampaignsSent,
+    newsletterSubscribersTotal: totalSubscribers,
+    newsletterCampaignsTotal: totalCampaigns,
+  };
+}
+
+async function getFulfillmentStats(storeId: string, from: Date, to: Date) {
+  const orders = await prisma.order.findMany({
+    where: {
+      storeId,
+      status: { in: [OrderStatus.SHIPPED, OrderStatus.DELIVERED] },
+      createdAt: { gte: from, lt: to },
+    },
+    select: { createdAt: true, statusHistory: true },
+    take: 200,
+  });
+
+  const durations: number[] = [];
+
+  for (const order of orders) {
+    const history = Array.isArray(order.statusHistory)
+      ? (order.statusHistory as StatusHistoryEntry[])
+      : [];
+    const placedAt = order.createdAt.getTime();
+    const shipped = history.find((entry) => entry.status === OrderStatus.SHIPPED);
+    if (shipped?.at) {
+      const shippedAt = new Date(shipped.at).getTime();
+      if (shippedAt > placedAt) {
+        durations.push((shippedAt - placedAt) / (1000 * 60 * 60));
+      }
+    }
+  }
+
+  const avgHoursToShip =
+    durations.length > 0
+      ? Math.round((durations.reduce((sum, value) => sum + value, 0) / durations.length) * 10) / 10
+      : null;
+
+  return {
+    shippedOrders: orders.length,
+    avgHoursToShip,
+  };
+}
+
+function buildBestSellers(
+  topProducts: Array<{ items: unknown }>,
+  limit = 8,
+) {
+  const productSales: Record<string, { name: string; quantity: number; revenue: number }> = {};
+  for (const order of topProducts) {
+    const items = order.items as Array<{
+      productId: string;
+      name: string;
+      price: number;
+      quantity: number;
+    }>;
+    for (const item of items) {
+      if (!productSales[item.productId]) {
+        productSales[item.productId] = { name: item.name, quantity: 0, revenue: 0 };
+      }
+      const entry = productSales[item.productId]!;
+      entry.quantity += item.quantity;
+      entry.revenue += item.price * item.quantity;
+    }
+  }
+
+  const bestSellers = Object.entries(productSales)
+    .map(([productId, data]) => ({ productId, ...data }))
+    .sort((a, b) => b.quantity - a.quantity)
+    .slice(0, limit);
+
+  const totalBestSellerRevenue = bestSellers.reduce((sum, item) => sum + item.revenue, 0);
+  return bestSellers.map((item) => ({
+    ...item,
+    share:
+      totalBestSellerRevenue > 0
+        ? Math.round((item.revenue / totalBestSellerRevenue) * 1000) / 10
+        : 0,
+  }));
+}
+
+const getOverview = async (storeId: string, rangeKey: AnalyticsRangeKey = "30d") => {
+  const plan = await getStorePlan(storeId);
+  const advancedAnalytics = PLAN_LIMITS[plan].advancedAnalytics;
+  const effectiveRange =
+    rangeKey === "90d" && !advancedAnalytics ? ("30d" as AnalyticsRangeKey) : rangeKey;
+
   const now = new Date();
-  const periodStart = new Date(now.getTime() - 30 * MS_PER_DAY);
-  const previousPeriodStart = new Date(now.getTime() - 60 * MS_PER_DAY);
+  const { from, to, label, previousFrom, previousTo, days } = resolveDateRange(effectiveRange);
+  const todayRange = resolveDateRange("today");
 
   const [
     orders,
@@ -62,6 +271,12 @@ const getOverview = async (storeId: string) => {
     currentPeriod,
     previousPeriod,
     statusGroups,
+    todayPeriod,
+    topCustomers,
+    paymentMethodBreakdown,
+    geoBreakdown,
+    marketing,
+    fulfillment,
   ] = await Promise.all([
     prisma.order.count({ where: { storeId } }),
     prisma.product.count({ where: { storeId, status: ProductStatus.ACTIVE } }),
@@ -79,63 +294,53 @@ const getOverview = async (storeId: string) => {
       where: {
         storeId,
         status: { not: OrderStatus.CANCELLED },
-        createdAt: { gte: new Date(now.getTime() - 90 * MS_PER_DAY) },
+        createdAt: { gte: from },
       },
       select: { items: true },
       take: 500,
     }),
-    getPeriodMetrics(storeId, periodStart, now),
-    getPeriodMetrics(storeId, previousPeriodStart, periodStart),
+    getPeriodMetrics(storeId, from, to),
+    getPeriodMetrics(storeId, previousFrom, previousTo),
     prisma.order.groupBy({
       by: ["status"],
       where: { storeId },
       _count: { _all: true },
     }),
+    getPeriodMetrics(storeId, todayRange.from, todayRange.to),
+    getTopCustomers(storeId, from, to),
+    getPaymentMethodBreakdown(storeId, from, to),
+    getGeoBreakdown(storeId, from, to),
+    getMarketingStats(storeId, from, to),
+    getFulfillmentStats(storeId, from, to),
   ]);
 
-  const productSales: Record<string, { name: string; quantity: number; revenue: number }> = {};
-  for (const order of topProducts) {
-    const items = order.items as Array<{ productId: string; name: string; price: number; quantity: number }>;
-    for (const item of items) {
-      if (!productSales[item.productId]) {
-        productSales[item.productId] = { name: item.name, quantity: 0, revenue: 0 };
-      }
-      const entry = productSales[item.productId]!;
-      entry.quantity += item.quantity;
-      entry.revenue += item.price * item.quantity;
-    }
-  }
+  const bestSellersWithShare = buildBestSellers(topProducts);
+  const lifetimeAov = orders > 0 ? (revenueAgg._sum.total ?? 0) / orders : 0;
 
-  const bestSellers = Object.entries(productSales)
-    .map(([productId, data]) => ({ productId, ...data }))
-    .sort((a, b) => b.quantity - a.quantity)
-    .slice(0, 8);
-
-  const totalBestSellerRevenue = bestSellers.reduce((sum, item) => sum + item.revenue, 0);
-  const bestSellersWithShare = bestSellers.map((item) => ({
-    ...item,
-    share:
-      totalBestSellerRevenue > 0
-        ? Math.round((item.revenue / totalBestSellerRevenue) * 1000) / 10
-        : 0,
-  }));
-
-  const lifetimeAov =
-    orders > 0 ? (revenueAgg._sum.total ?? 0) / orders : 0;
+  const funnel = advancedAnalytics
+    ? await StorefrontEventService.getFunnelMetrics(storeId, from, to, currentPeriod.orders)
+    : null;
 
   return {
+    range: effectiveRange,
+    capabilities: { advancedAnalytics },
     revenue: revenueAgg._sum.total ?? 0,
     orders,
     products,
     customers,
     recentOrders,
     bestSellers: bestSellersWithShare,
+    today: {
+      label: todayRange.label,
+      ...todayPeriod,
+    },
     period: {
-      label: "Last 30 days",
+      label,
+      days,
       ...currentPeriod,
     },
     previousPeriod: {
-      label: "Prior 30 days",
+      label: `Prior ${label.toLowerCase()}`,
       ...previousPeriod,
     },
     changes: {
@@ -143,21 +348,46 @@ const getOverview = async (storeId: string) => {
       orders: pctChange(currentPeriod.orders, previousPeriod.orders),
       newCustomers: pctChange(currentPeriod.newCustomers, previousPeriod.newCustomers),
       aov: pctChange(currentPeriod.aov, previousPeriod.aov),
+      visitors: pctChange(currentPeriod.visitors, previousPeriod.visitors),
+      conversionRate:
+        currentPeriod.conversionRate !== null && previousPeriod.conversionRate !== null
+          ? pctChange(currentPeriod.conversionRate, previousPeriod.conversionRate)
+          : null,
     },
     aov: lifetimeAov,
     orderStatusBreakdown: statusGroups.map((group) => ({
       status: group.status,
       count: group._count._all,
     })),
+    topCustomers,
+    paymentMethodBreakdown,
+    geoBreakdown,
+    marketing,
+    fulfillment,
+    funnel,
   };
 };
 
-const getCharts = async (storeId: string) => {
+const getCharts = async (storeId: string, rangeKey: AnalyticsRangeKey = "30d") => {
+  const plan = await getStorePlan(storeId);
+  const advancedAnalytics = PLAN_LIMITS[plan].advancedAnalytics;
+  if (!advancedAnalytics) {
+    return {
+      monthlyRevenue: [],
+      monthlyOrders: [],
+      dailyRevenue: [],
+      totalOrders: 0,
+      locked: true,
+    };
+  }
+
+  const effectiveRange = parseAnalyticsRange(rangeKey);
+  const { days } = resolveDateRange(effectiveRange);
   const now = new Date();
   const since12m = new Date(now);
   since12m.setMonth(since12m.getMonth() - 12);
 
-  const since30d = new Date(now.getTime() - 30 * MS_PER_DAY);
+  const sinceDaily = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
   const orders = await prisma.order.findMany({
     where: {
@@ -179,7 +409,7 @@ const getCharts = async (storeId: string) => {
     monthlyRevenue[month] = (monthlyRevenue[month] ?? 0) + total;
     monthlyOrders[month] = (monthlyOrders[month] ?? 0) + 1;
 
-    if (order.createdAt >= since30d) {
+    if (order.createdAt >= sinceDaily) {
       const day = dayKey(order.createdAt);
       dailyRevenue[day] = (dailyRevenue[day] ?? 0) + total;
     }
@@ -212,7 +442,7 @@ const getCharts = async (storeId: string) => {
 
   const buildDailySeries = (values: Record<string, number>) => {
     const series = [];
-    for (let i = 29; i >= 0; i--) {
+    for (let i = days - 1; i >= 0; i--) {
       const d = new Date(now);
       d.setHours(12, 0, 0, 0);
       d.setDate(d.getDate() - i);
@@ -231,6 +461,7 @@ const getCharts = async (storeId: string) => {
     monthlyOrders: buildMonthlySeries(monthlyOrders, "orders"),
     dailyRevenue: buildDailySeries(dailyRevenue),
     totalOrders: orders.length,
+    locked: false,
   };
 };
 

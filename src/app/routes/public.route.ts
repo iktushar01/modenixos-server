@@ -32,6 +32,8 @@ import { optionalCheckAuth } from "../middleware/optionalCheckAuth";
 import { chatbotLimiter } from "../middleware/chatbotRateLimiter";
 import { ChatbotController } from "../module/chatbot/chatbot.controller";
 import { chatbotMessageSchema } from "../module/chatbot/chatbot.validation";
+import { AnalyticsController } from "../module/analytics/analytics.controller";
+import { trackStorefrontEventSchema } from "../module/analytics/analytics.validation";
 import { catchAsync } from "../shared/catchAsync";
 import { sendResponse } from "../shared/sendResponse";
 import { StatusCodes } from "http-status-codes";
@@ -126,6 +128,12 @@ storeRouter.get(
     const result = await ProductService.getPublicProduct(req.storeId!, req.params.id as string);
     sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Product retrieved", data: result });
   }),
+);
+
+storeRouter.post(
+  "/events",
+  validateRequest(trackStorefrontEventSchema),
+  AnalyticsController.trackStorefrontEvent,
 );
 
 storeRouter.post(
