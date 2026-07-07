@@ -358,7 +358,7 @@ const syncSubscriptionFromStripe = async (stripeSubscription: Stripe.Subscriptio
       : new Date(),
     periodEnd: subData.current_period_end
       ? new Date(subData.current_period_end * 1000)
-      : undefined,
+      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     stripeSubscriptionId: stripeSubscription.id,
     stripeCustomerId:
       typeof stripeSubscription.customer === "string"

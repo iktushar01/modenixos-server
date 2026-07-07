@@ -93,7 +93,7 @@ export const activatePaidPlan = async (
       currentPeriodStart: now,
       currentPeriodEnd: periodEnd,
       cancelAtPeriodEnd: options.cancelAtPeriodEnd ?? false,
-      trialEndsAt: options.clearTrial ? null : undefined,
+      ...(options.clearTrial ? { trialEndsAt: null } : {}),
       ...(options.stripeSubscriptionId !== undefined
         ? { stripeSubscriptionId: options.stripeSubscriptionId }
         : {}),

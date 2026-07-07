@@ -166,8 +166,6 @@ const createSslBillingCheckout = async (
     product_profile: "non-physical-goods",
     value_a: storeId,
     value_b: invoice.id,
-    value_c: normalized,
-    value_d: interval,
   });
 
   if (initResponse.status !== "SUCCESS" || !initResponse.GatewayPageURL) {
