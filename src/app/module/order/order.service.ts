@@ -212,10 +212,6 @@ const refundOrder = async (storeId: string, id: string, reason?: string) => {
     throw new AppError(StatusCodes.BAD_REQUEST, "Only paid orders can be refunded");
   }
 
-  if (payment.status === PaymentStatus.REFUNDED) {
-    throw new AppError(StatusCodes.BAD_REQUEST, "Order is already refunded");
-  }
-
   const refundableStatuses: OrderStatus[] = [
     OrderStatus.CONFIRMED,
     OrderStatus.PACKED,
