@@ -9,7 +9,7 @@ import {
   ProductStatus,
 } from "../../lib/prisma-exports";
 import { QueryBuilder } from "../../utils/QueryBuilder";
-import { PLAN_LIMITS } from "../../../config/planLimits";
+import { PLAN_LIMITS, normalizeStorePlan } from "../../../config/planLimits";
 import {
   DEFAULT_NEWSLETTER_SETTINGS,
   generateNewsletterToken,
@@ -65,7 +65,7 @@ const subscribe = async (
   const activeCount = await prisma.newsletterSubscriber.count({
     where: { storeId, status: { in: [NewsletterSubscriberStatus.ACTIVE, NewsletterSubscriberStatus.PENDING] } },
   });
-  const maxSubscribers = PLAN_LIMITS[store.plan].maxNewsletterSubscribers;
+  const maxSubscribers = PLAN_LIMITS[normalizeStorePlan(store.plan)].maxNewsletterSubscribers;
   if (activeCount >= maxSubscribers) {
     throw new AppError(
       StatusCodes.FORBIDDEN,
@@ -263,7 +263,7 @@ const createCampaign = async (
       sentAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) },
     },
   });
-  if (sentThisMonth >= PLAN_LIMITS[store.plan].maxNewsletterCampaignsPerMonth) {
+  if (sentThisMonth >= PLAN_LIMITS[normalizeStorePlan(store.plan)].maxNewsletterCampaignsPerMonth) {
     throw new AppError(StatusCodes.FORBIDDEN, "Monthly newsletter campaign limit reached for your plan");
   }
 
