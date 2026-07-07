@@ -12,5 +12,5 @@ export const trackStorefrontEventSchema = z.object({
   path: z.string().max(512).optional(),
   productId: z.string().uuid().optional(),
   referrer: z.string().max(512).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });

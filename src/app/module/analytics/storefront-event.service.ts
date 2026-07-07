@@ -29,7 +29,7 @@ const trackEvent = async (storeId: string, input: TrackStorefrontEventInput) => 
       path: input.path ?? null,
       productId: input.productId ?? null,
       referrer: input.referrer ?? null,
-      metadata: input.metadata ? (input.metadata as object) : undefined,
+      ...(input.metadata ? { metadata: input.metadata as object } : {}),
     },
   });
   return { ok: true };
