@@ -46,8 +46,14 @@ const createCheckout = catchAsync(async (req: Request, res: Response) => {
     owner,
     req.body.plan,
     req.body.provider ?? "STRIPE",
+    req.body.interval ?? "MONTHLY",
   );
   sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Checkout session created", data: result });
+});
+
+const startTrial = catchAsync(async (req: Request, res: Response) => {
+  const result = await BillingService.startFreeTrial(req.storeId!);
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: result.message, data: result });
 });
 
 const parseCallbackPayload = (req: Request) => {
@@ -108,6 +114,7 @@ export const BillingController = {
   createCheckout,
   createPortal,
   cancel,
+  startTrial,
   webhook,
   sslSuccessCallback,
   sslFailCallback,

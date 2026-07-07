@@ -6,5 +6,11 @@ export const suspendStoreZodSchema = z.object({
 });
 
 export const adminOverridePlanZodSchema = z.object({
-  plan: z.enum([StorePlan.FREE, StorePlan.PRO, StorePlan.ENTERPRISE]),
+  plan: z.enum([
+    StorePlan.FREE,
+    StorePlan.PRO,
+    StorePlan.PRO_PLUS,
+    StorePlan.ULTRA,
+    StorePlan.ENTERPRISE,
+  ]),
 });

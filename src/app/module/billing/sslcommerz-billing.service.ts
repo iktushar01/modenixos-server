@@ -2,16 +2,22 @@ import { randomBytes } from "node:crypto";
 import { StatusCodes } from "http-status-codes";
 import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
-import { InvoiceStatus, StorePlan, SubscriptionStatus } from "../../lib/prisma-exports";
-import { PLAN_LIMITS } from "../../../config/planLimits";
+import { InvoiceStatus, StorePlan } from "../../lib/prisma-exports";
+import {
+  getPlanPriceBdt,
+  normalizeStorePlan,
+  PLAN_LIMITS,
+  PAID_PLANS,
+  type BillingInterval,
+} from "../../../config/planLimits";
 import { sslcommerzConfig } from "../../../config/sslcommerz.config";
 import { ensureStoreSubscription } from "../../utils/subscription";
 import { SslCommerzService } from "../payment/sslcommerz.service";
 
-const BILLING_PERIOD_DAYS = 30;
-
 const generateBillingTransactionId = () =>
   `BILL-${Date.now().toString(36).toUpperCase()}-${randomBytes(3).toString("hex").toUpperCase()}`;
+
+const periodDaysForInterval = (interval: BillingInterval) => (interval === "YEARLY" ? 365 : 30);
 
 const findBillingInvoice = async (tranId?: string, invoiceId?: string) => {
   if (tranId) {
@@ -47,9 +53,11 @@ const activateSslBilling = async (
       return invoice;
     }
 
+    const targetPlan = normalizeStorePlan(invoice.planTarget ?? StorePlan.PRO);
+    const interval = invoice.billingInterval ?? "MONTHLY";
     const now = new Date();
     const periodEnd = new Date(now);
-    periodEnd.setDate(periodEnd.getDate() + BILLING_PERIOD_DAYS);
+    periodEnd.setDate(periodEnd.getDate() + periodDaysForInterval(interval));
 
     await tx.invoice.update({
       where: { id: invoiceId },
@@ -64,18 +72,20 @@ const activateSslBilling = async (
     await tx.subscription.update({
       where: { storeId: invoice.storeId },
       data: {
-        plan: StorePlan.PRO,
-        status: SubscriptionStatus.ACTIVE,
+        plan: targetPlan,
+        status: "ACTIVE",
         billingProvider: "SSLCOMMERZ",
+        billingInterval: interval,
         currentPeriodStart: now,
         currentPeriodEnd: periodEnd,
         cancelAtPeriodEnd: false,
+        trialEndsAt: null,
       },
     });
 
     await tx.store.update({
       where: { id: invoice.storeId },
-      data: { plan: StorePlan.PRO },
+      data: { plan: targetPlan },
     });
 
     return invoice;
@@ -99,6 +109,7 @@ const createSslBillingCheckout = async (
   storeId: string,
   owner: { email: string; name: string },
   targetPlan: StorePlan,
+  interval: BillingInterval = "MONTHLY",
 ) => {
   if (!sslcommerzConfig.isConfigured) {
     throw new AppError(
@@ -107,8 +118,9 @@ const createSslBillingCheckout = async (
     );
   }
 
-  if (targetPlan !== StorePlan.PRO) {
-    throw new AppError(StatusCodes.BAD_REQUEST, "SSLCommerz checkout is only available for the Growth plan.");
+  const normalized = normalizeStorePlan(targetPlan);
+  if (!PAID_PLANS.includes(normalized as (typeof PAID_PLANS)[number])) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "Invalid plan for SSLCommerz checkout.");
   }
 
   const store = await prisma.store.findUnique({ where: { id: storeId } });
@@ -116,7 +128,7 @@ const createSslBillingCheckout = async (
 
   const subscription = await ensureStoreSubscription(storeId);
   const transactionId = generateBillingTransactionId();
-  const amount = sslcommerzConfig.billingProAmountBdt;
+  const amount = getPlanPriceBdt(normalized, interval);
 
   const invoice = await prisma.invoice.create({
     data: {
@@ -127,6 +139,8 @@ const createSslBillingCheckout = async (
       status: InvoiceStatus.OPEN,
       provider: "SSLCOMMERZ",
       transactionId,
+      planTarget: normalized,
+      billingInterval: interval,
     },
   });
 
@@ -147,11 +161,13 @@ const createSslBillingCheckout = async (
     cus_country: "Bangladesh",
     shipping_method: "NO",
     num_of_item: 1,
-    product_name: `ModenixOS ${PLAN_LIMITS.PRO.label} Plan`,
+    product_name: `ModenixOS ${PLAN_LIMITS[normalized].label} (${interval === "YEARLY" ? "Yearly" : "Monthly"})`,
     product_category: "Subscription",
     product_profile: "non-physical-goods",
     value_a: storeId,
     value_b: invoice.id,
+    value_c: normalized,
+    value_d: interval,
   });
 
   if (initResponse.status !== "SUCCESS" || !initResponse.GatewayPageURL) {
@@ -169,8 +185,6 @@ const createSslBillingCheckout = async (
     where: { id: invoice.id },
     data: { gatewayResponse: initResponse as object },
   });
-
-  console.info("[billing] SSLCommerz session initialized", { storeId, transactionId, amount });
 
   return { url: initResponse.GatewayPageURL };
 };

@@ -1,6 +1,6 @@
 import { prisma } from "../../lib/prisma";
 import { OrderStatus, ProductStatus } from "../../lib/prisma-exports";
-import { PLAN_LIMITS } from "../../../config/planLimits";
+import { PLAN_LIMITS, normalizeStorePlan } from "../../../config/planLimits";
 import { getStorePlan } from "../../utils/planEnforcement";
 import {
   AnalyticsRangeKey,
@@ -253,7 +253,7 @@ function buildBestSellers(
 
 const getOverview = async (storeId: string, rangeKey: AnalyticsRangeKey = "30d") => {
   const plan = await getStorePlan(storeId);
-  const advancedAnalytics = PLAN_LIMITS[plan].advancedAnalytics;
+  const advancedAnalytics = PLAN_LIMITS[normalizeStorePlan(plan)].advancedAnalytics;
   const effectiveRange =
     rangeKey === "90d" && !advancedAnalytics ? ("30d" as AnalyticsRangeKey) : rangeKey;
 

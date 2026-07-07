@@ -3,6 +3,7 @@ import { envVars } from "./config/env";
 import { chatbotConfig } from "./config/chatbot.config";
 import { seedChatbotKnowledge } from "./app/module/chatbot/chatbot.service";
 import { seedSuperAdmin } from "./app/utils/seed";
+import { startBillingLifecycleScheduler } from "./app/utils/billing-lifecycle";
 
 // Load .env only in development
 if (process.env.NODE_ENV !== "production") {
@@ -45,6 +46,8 @@ const bootstrap = async () => {
         console.error("[chatbot] Knowledge seed skipped due to startup error:", error);
       });
     }
+
+    startBillingLifecycleScheduler();
   } catch (error: any) {
     if (error.code === "EADDRINUSE") {
       console.error(

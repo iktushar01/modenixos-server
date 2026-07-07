@@ -12,6 +12,7 @@ const ownerBillingAuth = [checkAuth(Role.CLIENT), attachStoreOwner] as const;
 router.get("/plans", BillingController.getPlans);
 router.get("/overview", ...ownerBillingAuth, BillingController.getOverview);
 router.post("/checkout", ...ownerBillingAuth, validateRequest(checkoutZodSchema), BillingController.createCheckout);
+router.post("/start-trial", ...ownerBillingAuth, BillingController.startTrial);
 router.post("/portal", ...ownerBillingAuth, BillingController.createPortal);
 router.post("/cancel", ...ownerBillingAuth, BillingController.cancel);
 
