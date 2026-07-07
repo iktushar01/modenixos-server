@@ -1,7 +1,7 @@
 import { StatusCodes } from "http-status-codes";
 import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
-import { OrderStatus, PaymentStatus, ProductStatus } from "../../lib/prisma-exports";
+import { OrderStatus, PaymentStatus } from "../../lib/prisma-exports";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { CommissionService } from "../commission/commission.service";
 import {
@@ -256,7 +256,13 @@ const refundOrder = async (storeId: string, id: string, reason?: string) => {
   return refreshed;
 };
 
-const retryPayment = async (storeId: string, storeSlug: string, orderId: string) => {
+const retryPayment = async (storeId: string, orderId: string) => {
+  const store = await prisma.store.findUnique({
+    where: { id: storeId },
+    select: { slug: true },
+  });
+  if (!store) throw new AppError(StatusCodes.NOT_FOUND, "Store not found");
+
   const order = await getOrder(storeId, orderId);
   if (order.paymentMethod !== "SSLCOMMERZ") {
     throw new AppError(StatusCodes.BAD_REQUEST, "Only SSLCommerz orders support payment retry");
@@ -266,7 +272,7 @@ const retryPayment = async (storeId: string, storeSlug: string, orderId: string)
   }
 
   const { PaymentService } = await import("../payment/payment.service");
-  return PaymentService.createSslCommerzCheckoutForOrder(storeId, storeSlug, order);
+  return PaymentService.createSslCommerzCheckoutForOrder(storeId, store.slug, order);
 };
 
 const getOrderStats = async (storeId: string) => {

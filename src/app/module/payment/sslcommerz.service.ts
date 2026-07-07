@@ -1,6 +1,11 @@
 import SSLCommerzPayment from "sslcommerz-lts";
 import { sslcommerzConfig } from "../../../config/sslcommerz.config";
 
+export type SslCredentials = {
+  storeId: string;
+  storePassword: string;
+};
+
 export type SslInitPayload = {
   total_amount: number;
   currency: string;
@@ -32,20 +37,20 @@ export type SslInitPayload = {
   value_b?: string;
 };
 
-const getClient = () => {
-  if (!sslcommerzConfig.isConfigured) {
+const getClient = (credentials?: SslCredentials) => {
+  const storeId = credentials?.storeId ?? sslcommerzConfig.storeId;
+  const storePassword = credentials?.storePassword ?? sslcommerzConfig.storePassword;
+
+  if (!storeId || !storePassword) {
     throw new Error("SSLCommerz is not configured. Set SSLC_STORE_ID and SSLC_STORE_PASSWORD.");
   }
-  return new SSLCommerzPayment(
-    sslcommerzConfig.storeId,
-    sslcommerzConfig.storePassword,
-    sslcommerzConfig.isLive,
-  );
+
+  return new SSLCommerzPayment(storeId, storePassword, sslcommerzConfig.isLive);
 };
 
 export const SslCommerzService = {
-  async initPayment(data: SslInitPayload) {
-    const sslcz = getClient();
+  async initPayment(data: SslInitPayload, credentials?: SslCredentials) {
+    const sslcz = getClient(credentials);
     const response = await sslcz.init(data);
     return response as {
       status?: string;
@@ -55,8 +60,8 @@ export const SslCommerzService = {
     };
   },
 
-  async validatePayment(valId: string) {
-    const sslcz = getClient();
+  async validatePayment(valId: string, credentials?: SslCredentials) {
+    const sslcz = getClient(credentials);
     const response = await sslcz.validate({ val_id: valId });
     return response as {
       status?: string;

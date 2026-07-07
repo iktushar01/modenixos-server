@@ -5,11 +5,23 @@ import { sendResponse } from "../../shared/sendResponse";
 import { OrderService } from "./order.service";
 import { StoreService } from "../store/store.service";
 import { StorefrontCustomerService } from "../storefront-customer/storefront-customer.service";
+import { InvoiceService } from "./invoice.service";
 
 const createPublic = catchAsync(async (req: Request, res: Response) => {
   const store = await StoreService.getPublicStoreBySlug(req.params.slug as string);
   const result = await OrderService.createPublicOrder(store.id, req.body);
   sendResponse(res, { statusCode: StatusCodes.CREATED, success: true, message: "Order placed successfully", data: result });
+});
+
+const previewCheckout = catchAsync(async (req: Request, res: Response) => {
+  const store = await StoreService.getPublicStoreBySlug(req.params.slug as string);
+  const result = await OrderService.previewCheckout(store.id, req.body);
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Checkout preview calculated", data: result });
+});
+
+const getCheckoutOptions = catchAsync(async (req: Request, res: Response) => {
+  const result = await OrderService.getPublicPaymentOptions(req.storeId!);
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Checkout options retrieved", data: result });
 });
 
 const getStats = catchAsync(async (req: Request, res: Response) => {
@@ -41,6 +53,34 @@ const updateStatus = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Order status updated", data: result });
 });
 
+const refund = catchAsync(async (req: Request, res: Response) => {
+  const result = await OrderService.refundOrder(req.storeId!, req.params.id as string, req.body.reason);
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Order refunded", data: result });
+});
+
+const retryPayment = catchAsync(async (req: Request, res: Response) => {
+  const result = await OrderService.retryPayment(req.storeId!, req.params.id as string);
+  sendResponse(res, { statusCode: StatusCodes.OK, success: true, message: "Payment session created", data: result });
+});
+
+const getOwnerInvoice = catchAsync(async (req: Request, res: Response) => {
+  const html = await InvoiceService.renderInvoiceHtml(req.params.id as string, req.storeId!);
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(html);
+});
+
+const getPublicInvoice = catchAsync(async (req: Request, res: Response) => {
+  const { email } = req.query as { email: string };
+  const order = await OrderService.trackGuestOrder(
+    req.storeId!,
+    req.params.orderNumber as string,
+    email,
+  );
+  const html = await InvoiceService.renderInvoiceHtml(order.id, req.storeId!);
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(html);
+});
+
 const getMyOrders = catchAsync(async (req: Request, res: Response) => {
   const customer = await StorefrontCustomerService.getMe(req.storeId!, req.storefrontCustomerId!);
   const result = await OrderService.getCustomerOrders(req.storeId!, customer.email);
@@ -65,10 +105,16 @@ const trackOrder = catchAsync(async (req: Request, res: Response) => {
 
 export const OrderController = {
   createPublic,
+  previewCheckout,
+  getCheckoutOptions,
   getStats,
   getAll,
   getOne,
   updateStatus,
+  refund,
+  retryPayment,
+  getOwnerInvoice,
+  getPublicInvoice,
   getMyOrders,
   getMyOrder,
   trackOrder,

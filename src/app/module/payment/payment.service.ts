@@ -282,26 +282,114 @@ const createSslCommerzCheckoutForOrder = async (
   order: {
     id: string;
     orderNumber: string;
-    invoiceNumber: string | null;
+    total: number;
+    items: unknown;
     customerName: string;
     customerEmail: string;
     customerPhone: string | null;
     shippingAddress: unknown;
-    items: unknown;
-    couponCode: string | null;
+    status: OrderStatus;
+    statusHistory: unknown;
   },
 ) => {
+  const store = await prisma.store.findUnique({ where: { id: storeId } });
+  if (!store) throw new AppError(StatusCodes.NOT_FOUND, "Store not found");
+
+  const credentials = resolveSslCredentials(store.payments);
+  if (!credentials) {
+    throw new AppError(StatusCodes.SERVICE_UNAVAILABLE, "SSLCommerz is not configured");
+  }
+
+  if (order.status === OrderStatus.CANCELLED) {
+    const items = order.items as CheckoutInput["items"];
+    await prisma.$transaction(async (tx) => {
+      await decrementOrderStock(tx, items);
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          status: OrderStatus.PENDING,
+          statusHistory: appendStatusHistory(order.statusHistory, OrderStatus.PENDING, "Payment retry") as object,
+        },
+      });
+    });
+  }
+
+  const transactionId = generateTransactionId();
+  const currency = store.currency === "BDT" ? "BDT" : "BDT";
   const items = order.items as CheckoutInput["items"];
   const shippingAddress = order.shippingAddress as CheckoutInput["shippingAddress"];
 
-  return createSslCommerzCheckout(storeId, storeSlug, {
-    items,
-    customerName: order.customerName,
-    customerEmail: order.customerEmail,
-    customerPhone: order.customerPhone ?? undefined,
-    shippingAddress,
-    ...(order.couponCode ? { couponCode: order.couponCode } : {}),
+  const payment = await prisma.payment.create({
+    data: {
+      orderId: order.id,
+      amount: order.total,
+      currency,
+      provider: "SSLCOMMERZ",
+      transactionId,
+      status: PaymentStatus.PENDING,
+    },
   });
+
+  const shipName = order.customerName.trim() || "Customer";
+  const shipAddress = shippingAddress.line1.trim() || "N/A";
+  const shipCity = shippingAddress.city.trim() || "Dhaka";
+  const shipState = shippingAddress.state?.trim() || shipCity;
+  const shipPostcode = shippingAddress.postalCode.trim() || "1000";
+  const shipCountry = shippingAddress.country.trim() || "Bangladesh";
+
+  const initResponse = await initSslSession(credentials, {
+    total_amount: order.total,
+    currency,
+    tran_id: transactionId,
+    success_url: sslcommerzConfig.successUrl,
+    fail_url: sslcommerzConfig.failUrl,
+    cancel_url: sslcommerzConfig.cancelUrl,
+    ipn_url: sslcommerzConfig.ipnUrl,
+    cus_name: shipName,
+    cus_email: order.customerEmail,
+    cus_phone: order.customerPhone ?? "01700000000",
+    cus_add1: shipAddress,
+    cus_city: shipCity,
+    cus_postcode: shipPostcode,
+    cus_country: shipCountry,
+    shipping_method: "YES",
+    ship_name: shipName,
+    ship_add1: shipAddress,
+    ship_add2: shippingAddress.line2?.trim() || shipAddress,
+    ship_city: shipCity,
+    ship_state: shipState,
+    ship_postcode: shipPostcode,
+    ship_country: shipCountry,
+    num_of_item: items.length,
+    product_name: `Order ${order.orderNumber}`,
+    product_category: "E-commerce",
+    product_profile: "physical-goods",
+    value_a: storeSlug,
+    value_b: order.id,
+  });
+
+  if (initResponse.status !== "SUCCESS" || !initResponse.GatewayPageURL) {
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { status: PaymentStatus.FAILED, gatewayResponse: initResponse as object },
+    });
+    throw new AppError(
+      StatusCodes.BAD_GATEWAY,
+      initResponse.failedreason ?? "Failed to initialize SSLCommerz payment session",
+    );
+  }
+
+  await prisma.payment.update({
+    where: { id: payment.id },
+    data: { gatewayResponse: initResponse as object },
+  });
+
+  return {
+    paymentUrl: initResponse.GatewayPageURL,
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    transactionId,
+  };
 };
 
 const findPaymentByCallback = async (tranId?: string, orderId?: string) => {
@@ -346,12 +434,18 @@ const markPaymentPaid = async (
       },
     });
 
+    const existingOrder = await tx.order.findUnique({ where: { id: payment.orderId } });
+
     await tx.order.update({
       where: { id: payment.orderId },
       data: {
         status: OrderStatus.CONFIRMED,
         paymentMethod: "SSLCOMMERZ",
-        statusHistory: appendStatusHistory([], OrderStatus.CONFIRMED, "Payment received") as object,
+        statusHistory: appendStatusHistory(
+          existingOrder?.statusHistory,
+          OrderStatus.CONFIRMED,
+          "Payment received",
+        ) as object,
       },
     });
 

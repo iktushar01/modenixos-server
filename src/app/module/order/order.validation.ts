@@ -11,25 +11,33 @@ const orderItemSchema = z.object({
   image: z.string().optional(),
 });
 
+const shippingAddressSchema = z.object({
+  line1: z.string().min(2),
+  line2: z.string().optional(),
+  city: z.string().min(2),
+  state: z.string().optional(),
+  postalCode: z.string().min(2),
+  country: z.string().min(2),
+});
+
 export const createOrderZodSchema = z.object({
   items: z.array(orderItemSchema).min(1),
   customerName: z.string().min(2).max(100),
   customerEmail: z.string().email(),
   customerPhone: z.string().optional(),
-  shippingAddress: z.object({
-    line1: z.string().min(2),
-    line2: z.string().optional(),
-    city: z.string().min(2),
-    state: z.string().optional(),
-    postalCode: z.string().min(2),
-    country: z.string().min(2),
-  }),
-  subtotal: z.coerce.number().min(0),
+  shippingAddress: shippingAddressSchema,
+  subtotal: z.coerce.number().min(0).optional(),
   shipping: z.coerce.number().min(0).optional(),
   discount: z.coerce.number().min(0).optional(),
-  total: z.coerce.number().positive(),
+  total: z.coerce.number().positive().optional(),
   couponCode: z.string().optional(),
   paymentMethod: z.string().optional(),
+});
+
+export const previewCheckoutZodSchema = z.object({
+  items: z.array(orderItemSchema).min(1),
+  shippingAddress: shippingAddressSchema,
+  couponCode: z.string().optional(),
 });
 
 export const updateOrderStatusZodSchema = z.object({
@@ -38,7 +46,15 @@ export const updateOrderStatusZodSchema = z.object({
   trackingCarrier: z.string().max(80).optional().nullable(),
 });
 
+export const refundOrderZodSchema = z.object({
+  reason: z.string().max(500).optional(),
+});
+
 export const trackOrderQuerySchema = z.object({
   orderNumber: z.string().min(3).max(40),
+  email: z.string().email(),
+});
+
+export const invoiceQuerySchema = z.object({
   email: z.string().email(),
 });
