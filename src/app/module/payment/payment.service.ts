@@ -38,6 +38,38 @@ const generateOrderNumber = () => `ORD-${Date.now().toString(36).toUpperCase()}`
 const generateTransactionId = () =>
   `MODX-${Date.now().toString(36).toUpperCase()}-${randomBytes(3).toString("hex").toUpperCase()}`;
 
+const storeFrontendBase = (storeSlug: string) =>
+  `${sslcommerzConfig.frontendUrl}/store/${encodeURIComponent(storeSlug)}`;
+
+const buildOrderConfirmationUrl = (
+  storeSlug: string,
+  orderNumber: string,
+  customerEmail: string,
+  transactionId?: string,
+) => {
+  const params = new URLSearchParams({
+    order: orderNumber,
+    email: customerEmail,
+  });
+  if (transactionId) params.set("tran_id", transactionId);
+  return `${storeFrontendBase(storeSlug)}/orders/confirmation?${params.toString()}`;
+};
+
+const buildStorePaymentStatusUrl = (
+  storeSlug: string,
+  status: "failed" | "cancelled",
+  orderNumber?: string,
+  transactionId?: string,
+) => {
+  const params = new URLSearchParams();
+  if (orderNumber) params.set("order", orderNumber);
+  if (transactionId) params.set("tran_id", transactionId);
+  const qs = params.toString();
+  return qs
+    ? `${storeFrontendBase(storeSlug)}/payment/${status}?${qs}`
+    : `${storeFrontendBase(storeSlug)}/payment/${status}`;
+};
+
 const resolveUnitPrice = (product: { price: number; discountPrice: number | null }) =>
   product.discountPrice != null && product.discountPrice < product.price
     ? product.discountPrice
@@ -440,47 +472,75 @@ const processSuccessCallback = async (payload: Record<string, string>) => {
 
   if (!isValid || validation.tran_id !== payment.transactionId) {
     await markPaymentFailed(payment.id, { ...payload, validation });
+    const slug = storeSlug ?? payment.order.store.slug;
     return {
-      redirectUrl: `${sslcommerzConfig.frontendUrl}/payment/failed?order=${payment.order.orderNumber}&tran_id=${payment.transactionId}&store=${storeSlug ?? payment.order.store.slug}`,
+      redirectUrl: buildStorePaymentStatusUrl(slug, "failed", payment.order.orderNumber, payment.transactionId),
     };
   }
 
   const validatedAmount = Number(validation.amount ?? validation.store_amount ?? 0);
   if (Math.abs(validatedAmount - payment.amount) > 0.01) {
     await markPaymentFailed(payment.id, { ...payload, validation, reason: "amount_mismatch" });
+    const slug = storeSlug ?? payment.order.store.slug;
     return {
-      redirectUrl: `${sslcommerzConfig.frontendUrl}/payment/failed?order=${payment.order.orderNumber}&tran_id=${payment.transactionId}&store=${storeSlug ?? payment.order.store.slug}`,
+      redirectUrl: buildStorePaymentStatusUrl(slug, "failed", payment.order.orderNumber, payment.transactionId),
     };
   }
 
   await markPaymentPaid(payment.id, valId, { ...payload, validation });
 
+  const slug = storeSlug ?? payment.order.store.slug;
   return {
-    redirectUrl: `${sslcommerzConfig.frontendUrl}/payment/success?order=${payment.order.orderNumber}&tran_id=${payment.transactionId}&amount=${payment.amount}&store=${storeSlug ?? payment.order.store.slug}`,
+    redirectUrl: buildOrderConfirmationUrl(
+      slug,
+      payment.order.orderNumber,
+      payment.order.customerEmail,
+      payment.transactionId,
+    ),
   };
 };
 
 const processFailCallback = async (payload: Record<string, string>) => {
   const payment = await findPaymentByCallback(payload.tran_id, payload.value_b);
   if (!payment) {
-    return { redirectUrl: `${sslcommerzConfig.frontendUrl}/payment/failed` };
+    const storeSlug = payload.value_a;
+    return {
+      redirectUrl: storeSlug
+        ? buildStorePaymentStatusUrl(storeSlug, "failed")
+        : `${sslcommerzConfig.frontendUrl}/payment/failed`,
+    };
   }
 
   await markPaymentFailed(payment.id, payload);
   return {
-    redirectUrl: `${sslcommerzConfig.frontendUrl}/payment/failed?order=${payment.order.orderNumber}&tran_id=${payment.transactionId}&store=${payment.order.store.slug}`,
+    redirectUrl: buildStorePaymentStatusUrl(
+      payment.order.store.slug,
+      "failed",
+      payment.order.orderNumber,
+      payment.transactionId,
+    ),
   };
 };
 
 const processCancelCallback = async (payload: Record<string, string>) => {
   const payment = await findPaymentByCallback(payload.tran_id, payload.value_b);
   if (!payment) {
-    return { redirectUrl: `${sslcommerzConfig.frontendUrl}/payment/cancelled` };
+    const storeSlug = payload.value_a;
+    return {
+      redirectUrl: storeSlug
+        ? buildStorePaymentStatusUrl(storeSlug, "cancelled")
+        : `${sslcommerzConfig.frontendUrl}/payment/cancelled`,
+    };
   }
 
   await markPaymentCancelled(payment.id, payload);
   return {
-    redirectUrl: `${sslcommerzConfig.frontendUrl}/payment/cancelled?order=${payment.order.orderNumber}&tran_id=${payment.transactionId}&store=${payment.order.store.slug}`,
+    redirectUrl: buildStorePaymentStatusUrl(
+      payment.order.store.slug,
+      "cancelled",
+      payment.order.orderNumber,
+      payment.transactionId,
+    ),
   };
 };
 
