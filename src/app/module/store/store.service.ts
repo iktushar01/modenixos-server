@@ -158,6 +158,7 @@ const updateStore = async (
       ...(payload.isPublished !== undefined ? { isPublished: payload.isPublished } : {}),
       ...(nextTheme !== undefined ? { theme: nextTheme as object } : payload.theme !== undefined ? { theme: payload.theme as object } : {}),
       ...(payload.shipping !== undefined ? { shipping: payload.shipping as object } : {}),
+      ...(payload.payments !== undefined ? { payments: payload.payments as object } : {}),
       ...(logo !== undefined ? { logo } : {}),
       ...(logoDark !== undefined ? { logoDark } : {}),
       ...(banner !== undefined ? { banner } : {}),

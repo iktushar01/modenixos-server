@@ -35,6 +35,7 @@ export const updateStoreZodSchema = z.object({
   isPublished: z.coerce.boolean().optional(),
   theme: themeField,
   shipping: themeField,
+  payments: themeField,
   logo: z.preprocess((val) => (val === "" ? null : val), z.string().nullable().optional()),
   logoDark: z.preprocess((val) => (val === "" ? null : val), z.string().nullable().optional()),
   banner: z.preprocess((val) => (val === "" ? null : val), z.string().nullable().optional()),

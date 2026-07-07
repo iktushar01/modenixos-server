@@ -123,6 +123,14 @@ storeRouter.get(
 );
 
 storeRouter.post(
+  "/checkout/preview",
+  validateRequest(previewCheckoutZodSchema),
+  OrderController.previewCheckout,
+);
+
+storeRouter.get("/checkout/options", OrderController.getCheckoutOptions);
+
+storeRouter.post(
   "/orders",
   validateRequest(createOrderZodSchema),
   OrderController.createPublic,
@@ -140,6 +148,12 @@ storeRouter.get(
   "/orders/me",
   requireStorefrontCustomer,
   OrderController.getMyOrders,
+);
+
+storeRouter.get(
+  "/orders/:orderNumber/invoice",
+  validateRequest(invoiceQuerySchema, "query"),
+  OrderController.getPublicInvoice,
 );
 
 storeRouter.get(
