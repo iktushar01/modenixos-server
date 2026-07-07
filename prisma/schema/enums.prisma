@@ -20,7 +20,14 @@ enum Gender {
 enum StorePlan {
   FREE
   PRO
+  PRO_PLUS
+  ULTRA
   ENTERPRISE
+}
+
+enum BillingInterval {
+  MONTHLY
+  YEARLY
 }
 
 enum ProductStatus {

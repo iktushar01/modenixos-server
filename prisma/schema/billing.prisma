@@ -10,6 +10,8 @@ model Subscription {
   currentPeriodEnd     DateTime?
   cancelAtPeriodEnd    Boolean            @default(false)
   trialEndsAt          DateTime?
+  trialUsed            Boolean            @default(false)
+  billingInterval      BillingInterval    @default(MONTHLY)
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
@@ -50,6 +52,8 @@ model Invoice {
   gatewayResponse Json?
   amount          Decimal       @db.Decimal(10, 2)
   currency        String        @default("usd")
+  planTarget      StorePlan?
+  billingInterval BillingInterval?
   status          InvoiceStatus @default(OPEN)
   invoiceUrl      String?
   pdfUrl          String?

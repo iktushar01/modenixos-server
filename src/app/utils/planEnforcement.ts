@@ -2,21 +2,18 @@ import { StatusCodes } from "http-status-codes";
 import AppError from "../errorHelpers/AppError";
 import { prisma } from "../lib/prisma";
 import { StorePlan } from "../lib/prisma-exports";
-import { PLAN_LIMITS } from "../../config/planLimits";
+import { normalizeStorePlan, PLAN_LIMITS } from "../../config/planLimits";
 import { ensureStoreSubscription } from "./subscription";
+import { resolveEntitlements } from "./entitlements";
 
 export async function getStorePlan(storeId: string): Promise<StorePlan> {
-  const store = await prisma.store.findUnique({
-    where: { id: storeId },
-    select: { plan: true },
-  });
-
-  return store?.plan ?? StorePlan.FREE;
+  const entitlements = await resolveEntitlements(storeId);
+  return entitlements.plan;
 }
 
 export async function assertProductLimit(storeId: string) {
   const plan = await getStorePlan(storeId);
-  const limits = PLAN_LIMITS[plan];
+  const limits = PLAN_LIMITS[normalizeStorePlan(plan)];
 
   if (!Number.isFinite(limits.maxProducts)) return;
 
@@ -31,29 +28,30 @@ export async function assertProductLimit(storeId: string) {
 
 export async function assertCouponsAllowed(storeId: string) {
   const plan = await getStorePlan(storeId);
-  if (!PLAN_LIMITS[plan].coupons) {
+  if (!PLAN_LIMITS[normalizeStorePlan(plan)].coupons) {
     throw new AppError(
       StatusCodes.FORBIDDEN,
-      "Coupons are available on Growth and Scale plans. Upgrade to create coupons.",
+      "Coupons are available on Pro plans and above. Upgrade to create coupons.",
     );
   }
 }
 
 export async function assertAdvancedAnalytics(storeId: string) {
   const plan = await getStorePlan(storeId);
-  if (!PLAN_LIMITS[plan].advancedAnalytics) {
+  if (!PLAN_LIMITS[normalizeStorePlan(plan)].advancedAnalytics) {
     throw new AppError(
       StatusCodes.FORBIDDEN,
-      "Advanced analytics are available on Growth and Scale plans.",
+      "Advanced analytics are available on Pro+ and Ultra plans.",
     );
   }
 }
 
 export async function syncStorePlanFromSubscription(storeId: string) {
   const subscription = await ensureStoreSubscription(storeId);
+  const plan = normalizeStorePlan(subscription.plan);
   await prisma.store.update({
     where: { id: storeId },
-    data: { plan: subscription.plan },
+    data: { plan },
   });
   return subscription;
 }
