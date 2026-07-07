@@ -11,6 +11,12 @@ import { CouponController } from "../module/coupon/coupon.controller";
 import { StorefrontCustomerController } from "../module/storefront-customer/storefront-customer.controller";
 import { WishlistController } from "../module/wishlist/wishlist.controller";
 import { createOrderZodSchema, previewCheckoutZodSchema, trackOrderQuerySchema, invoiceQuerySchema } from "../module/order/order.validation";
+import {
+  subscribeNewsletterSchema,
+  confirmNewsletterQuerySchema,
+  unsubscribeNewsletterQuerySchema,
+} from "../module/newsletter/newsletter.validation";
+import { NewsletterController } from "../module/newsletter/newsletter.controller";
 import { PublicPaymentRoute } from "../module/payment/payment.route";
 import { createReviewZodSchema } from "../module/review/review.validation";
 import { validateCouponZodSchema } from "../module/coupon/coupon.validation";
@@ -129,6 +135,24 @@ storeRouter.post(
 );
 
 storeRouter.get("/checkout/options", OrderController.getCheckoutOptions);
+
+storeRouter.post(
+  "/newsletter/subscribe",
+  validateRequest(subscribeNewsletterSchema),
+  NewsletterController.subscribe,
+);
+
+storeRouter.get(
+  "/newsletter/confirm",
+  validateRequest(confirmNewsletterQuerySchema, "query"),
+  NewsletterController.confirm,
+);
+
+storeRouter.get(
+  "/newsletter/unsubscribe",
+  validateRequest(unsubscribeNewsletterQuerySchema, "query"),
+  NewsletterController.unsubscribe,
+);
 
 storeRouter.post(
   "/orders",

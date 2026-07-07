@@ -13,6 +13,7 @@ import { AnalyticsRoute } from "../module/analytics/analytics.route";
 import { AdminRoute } from "../module/admin/admin.route";
 import { BillingRoute } from "../module/billing/billing.route";
 import { PaymentRoute } from "../module/payment/payment.route";
+import { NewsletterRoute } from "../module/newsletter/newsletter.route";
 import { PublicRoute } from "./public.route";
 
 const router = express.Router();
@@ -31,6 +32,7 @@ router.use("/analytics", AnalyticsRoute);
 router.use("/admin", AdminRoute);
 router.use("/billing", BillingRoute);
 router.use("/payment", PaymentRoute);
+router.use("/newsletter", NewsletterRoute);
 router.use("/public", PublicRoute);
 
 export const IndexRoute = router;
