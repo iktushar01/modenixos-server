@@ -53,3 +53,15 @@ export type CommissionBase = (typeof CommissionBase)[keyof typeof CommissionBase
 export const PlatformEarningStatus = prismaModule.PlatformEarningStatus;
 export type PlatformEarningStatus = (typeof PlatformEarningStatus)[keyof typeof PlatformEarningStatus];
 
+export const NewsletterSubscriberStatus = prismaModule.NewsletterSubscriberStatus;
+export type NewsletterSubscriberStatus = (typeof NewsletterSubscriberStatus)[keyof typeof NewsletterSubscriberStatus];
+
+export const NewsletterCampaignType = prismaModule.NewsletterCampaignType;
+export type NewsletterCampaignType = (typeof NewsletterCampaignType)[keyof typeof NewsletterCampaignType];
+
+export const NewsletterCampaignStatus = prismaModule.NewsletterCampaignStatus;
+export type NewsletterCampaignStatus = (typeof NewsletterCampaignStatus)[keyof typeof NewsletterCampaignStatus];
+
+export const NewsletterSendStatus = prismaModule.NewsletterSendStatus;
+export type NewsletterSendStatus = (typeof NewsletterSendStatus)[keyof typeof NewsletterSendStatus];
+
