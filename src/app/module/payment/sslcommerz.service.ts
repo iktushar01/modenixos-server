@@ -17,6 +17,13 @@ export type SslInitPayload = {
   cus_postcode: string;
   cus_country: string;
   shipping_method: "YES" | "NO";
+  ship_name?: string;
+  ship_add1?: string;
+  ship_add2?: string;
+  ship_city?: string;
+  ship_state?: string;
+  ship_postcode?: string;
+  ship_country?: string;
   num_of_item: number;
   product_name: string;
   product_category: string;

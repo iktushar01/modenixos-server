@@ -230,6 +230,13 @@ const createSslCommerzCheckout = async (storeId: string, storeSlug: string, inpu
     total: calculated.total,
   });
 
+  const shipName = input.customerName.trim() || "Customer";
+  const shipAddress = input.shippingAddress.line1.trim() || "N/A";
+  const shipCity = input.shippingAddress.city.trim() || "Dhaka";
+  const shipState = input.shippingAddress.state?.trim() || shipCity;
+  const shipPostcode = input.shippingAddress.postalCode.trim() || "1000";
+  const shipCountry = input.shippingAddress.country.trim() || "Bangladesh";
+
   const initResponse = await SslCommerzService.initPayment({
     total_amount: calculated.total,
     currency,
@@ -238,14 +245,21 @@ const createSslCommerzCheckout = async (storeId: string, storeSlug: string, inpu
     fail_url: sslcommerzConfig.failUrl,
     cancel_url: sslcommerzConfig.cancelUrl,
     ipn_url: sslcommerzConfig.ipnUrl,
-    cus_name: input.customerName,
+    cus_name: shipName,
     cus_email: input.customerEmail,
     cus_phone: input.customerPhone ?? "01700000000",
-    cus_add1: input.shippingAddress.line1,
-    cus_city: input.shippingAddress.city,
-    cus_postcode: input.shippingAddress.postalCode,
-    cus_country: input.shippingAddress.country,
+    cus_add1: shipAddress,
+    cus_city: shipCity,
+    cus_postcode: shipPostcode,
+    cus_country: shipCountry,
     shipping_method: "YES",
+    ship_name: shipName,
+    ship_add1: shipAddress,
+    ship_add2: input.shippingAddress.line2?.trim() || shipAddress,
+    ship_city: shipCity,
+    ship_state: shipState,
+    ship_postcode: shipPostcode,
+    ship_country: shipCountry,
     num_of_item: calculated.lineItems.length,
     product_name: `Order ${order.orderNumber}`,
     product_category: "E-commerce",
