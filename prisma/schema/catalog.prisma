@@ -34,6 +34,7 @@ model Collection {
 
   store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
   products Product[]
+  newsletterCampaigns NewsletterCampaign[]
 
   @@unique([storeId, slug])
   @@index([storeId])

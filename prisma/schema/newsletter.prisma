@@ -1,0 +1,67 @@
+model NewsletterSubscriber {
+  id             String                     @id @default(uuid())
+  storeId        String
+  email          String
+  status         NewsletterSubscriberStatus @default(ACTIVE)
+  source         String                     @default("homepage")
+  customerId     String?
+  confirmToken   String?                    @unique
+  unsubscribeToken String                   @unique @default(uuid())
+  subscribedAt   DateTime                   @default(now())
+  confirmedAt    DateTime?
+  unsubscribedAt DateTime?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  store    Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  sends    NewsletterSend[]
+
+  @@unique([storeId, email])
+  @@index([storeId, status])
+  @@map("newsletter_subscribers")
+}
+
+model NewsletterCampaign {
+  id             String                   @id @default(uuid())
+  storeId        String
+  type           NewsletterCampaignType
+  status         NewsletterCampaignStatus @default(DRAFT)
+  subject        String
+  previewText    String?
+  headline       String?
+  bodyHtml       String?
+  blocks         Json?
+  productIds     String[]                 @default([])
+  collectionId   String?
+  couponCode     String?
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  recipientCount Int                      @default(0)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  store      Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  collection Collection?      @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  sends      NewsletterSend[]
+
+  @@index([storeId, status])
+  @@map("newsletter_campaigns")
+}
+
+model NewsletterSend {
+  id           String               @id @default(uuid())
+  campaignId   String
+  subscriberId String
+  status       NewsletterSendStatus @default(PENDING)
+  sentAt       DateTime?
+  error        String?
+  createdAt    DateTime             @default(now())
+
+  campaign   NewsletterCampaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  subscriber NewsletterSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, subscriberId])
+  @@index([campaignId, status])
+  @@map("newsletter_sends")
+}

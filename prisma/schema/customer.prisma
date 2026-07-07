@@ -13,6 +13,7 @@ model Customer {
 
   store         Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
   orders        Order[]
+  newsletterSubscribers NewsletterSubscriber[]
   reviews       Review[]
   wishlistItems WishlistItem[]
 

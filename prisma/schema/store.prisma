@@ -14,7 +14,8 @@ model Store {
   plan        StorePlan @default(FREE)
   theme       Json?
   shipping    Json?
-  payments    Json?
+  payments           Json?
+  newsletterSettings Json?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -33,6 +34,8 @@ model Store {
   paymentMethods PaymentMethod[]
   invoices         Invoice[]
   platformEarnings PlatformEarning[]
+  newsletterSubscribers NewsletterSubscriber[]
+  newsletterCampaigns   NewsletterCampaign[]
 
   @@index([slug])
   @@index([isPublished])

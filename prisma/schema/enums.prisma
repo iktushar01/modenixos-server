@@ -100,3 +100,34 @@ enum PlatformEarningStatus {
   EARNED
   REVERSED
 }
+
+enum NewsletterSubscriberStatus {
+  PENDING
+  ACTIVE
+  UNSUBSCRIBED
+  BOUNCED
+}
+
+enum NewsletterCampaignType {
+  PROMOTION
+  PRODUCT_SPOTLIGHT
+  NEW_ARRIVALS
+  COLLECTION
+  ANNOUNCEMENT
+  CUSTOM
+}
+
+enum NewsletterCampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum NewsletterSendStatus {
+  PENDING
+  SENT
+  FAILED
+}
