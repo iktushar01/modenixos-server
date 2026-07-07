@@ -3,11 +3,24 @@ import Stripe from "stripe";
 import AppError from "../../errorHelpers/AppError";
 import { prisma } from "../../lib/prisma";
 import { InvoiceStatus, StorePlan, SubscriptionStatus } from "../../lib/prisma-exports";
-import { PLAN_LIMITS, PLAN_MRR } from "../../../config/planLimits";
-import { isStripeConfigured, stripe, stripeConfig, resolveProMonthlyPriceId } from "../../../config/stripe.config";
+import {
+  COMPARISON_ROWS,
+  getPlanPriceBdt,
+  normalizeStorePlan,
+  PAID_PLANS,
+  PLAN_LIMITS,
+  PLAN_MRR,
+  type BillingInterval,
+} from "../../../config/planLimits";
+import { isStripeConfigured, resolveStripePriceId, stripe, stripeConfig } from "../../../config/stripe.config";
 import { sslcommerzConfig } from "../../../config/sslcommerz.config";
 import { ensureStoreSubscription } from "../../utils/subscription";
-import { syncStorePlanFromSubscription } from "../../utils/planEnforcement";
+import {
+  activatePaidPlan,
+  downgradeToFree,
+  resolveEntitlements,
+  startTrial,
+} from "../../utils/entitlements";
 import { SslCommerzBillingService } from "./sslcommerz-billing.service";
 
 export type BillingProvider = "STRIPE" | "SSLCOMMERZ";
@@ -16,7 +29,7 @@ const assertStripe = () => {
   if (!isStripeConfigured || !stripe) {
     throw new AppError(
       StatusCodes.SERVICE_UNAVAILABLE,
-      "Stripe is not configured. Add STRIPE_SECRET_KEY and STRIPE_PRICE_PRO_MONTHLY to your server environment.",
+      "Stripe is not configured. Add STRIPE_SECRET_KEY to your server environment.",
     );
   }
   return stripe;
@@ -64,12 +77,11 @@ const getUsage = async (storeId: string) => {
     prisma.product.count({ where: { storeId } }),
     prisma.storeMember.count({ where: { storeId } }),
   ]);
-
   return { productCount, memberCount };
 };
 
 const getOverview = async (storeId: string) => {
-  const [store, subscription, paymentMethods, invoices, usage] = await Promise.all([
+  const [store, subscription, paymentMethods, invoices, usage, entitlements] = await Promise.all([
     prisma.store.findUnique({ where: { id: storeId } }),
     ensureStoreSubscription(storeId),
     prisma.paymentMethod.findMany({ where: { storeId }, orderBy: { isDefault: "desc" } }),
@@ -79,39 +91,39 @@ const getOverview = async (storeId: string) => {
       take: 10,
     }),
     getUsage(storeId),
+    resolveEntitlements(storeId),
   ]);
 
   if (!store) {
     throw new AppError(StatusCodes.NOT_FOUND, "Store not found");
   }
 
-  const limits = PLAN_LIMITS[store.plan];
-
   return {
     store: {
       id: store.id,
       brandName: store.brandName,
-      plan: store.plan,
+      plan: entitlements.plan,
     },
     subscription,
+    entitlements,
     paymentMethods,
     invoices,
     usage,
-    limits,
+    limits: entitlements.limits,
     stripeConfigured: isStripeConfigured,
     sslConfigured: sslcommerzConfig.isConfigured,
-    sslBillingAmountBdt: sslcommerzConfig.billingProAmountBdt,
+    comparisonRows: COMPARISON_ROWS,
   };
 };
 
 const getPlans = () => {
-  return (Object.keys(PLAN_LIMITS) as StorePlan[]).map((plan) => ({
+  const publicPlans = [StorePlan.FREE, ...PAID_PLANS] as StorePlan[];
+  return publicPlans.map((plan) => ({
     plan,
     ...PLAN_LIMITS[plan],
     mrr: PLAN_MRR[plan],
-    stripePriceConfigured: plan === StorePlan.PRO ? isStripeConfigured : true,
-    sslPriceConfigured: plan === StorePlan.PRO ? sslcommerzConfig.isConfigured : true,
-    sslPriceBdt: plan === StorePlan.PRO ? sslcommerzConfig.billingProAmountBdt : null,
+    stripePriceConfigured: isStripeConfigured,
+    sslPriceConfigured: sslcommerzConfig.isConfigured,
   }));
 };
 
@@ -142,24 +154,27 @@ const createCheckoutSession = async (
   owner: { email: string; name: string },
   targetPlan: StorePlan,
   provider: BillingProvider = "STRIPE",
+  interval: BillingInterval = "MONTHLY",
 ) => {
-  if (targetPlan === StorePlan.FREE) {
+  const normalized = normalizeStorePlan(targetPlan);
+  if (normalized === StorePlan.FREE) {
     throw new AppError(StatusCodes.BAD_REQUEST, "Use cancel subscription to return to the free plan.");
   }
 
-  if (targetPlan === StorePlan.ENTERPRISE) {
-    throw new AppError(StatusCodes.BAD_REQUEST, "Contact sales for the Scale plan.");
+  if (!PAID_PLANS.includes(normalized as (typeof PAID_PLANS)[number])) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "Invalid plan selected.");
   }
 
   if (provider === "SSLCOMMERZ") {
-    return SslCommerzBillingService.createSslBillingCheckout(storeId, owner, targetPlan);
+    return SslCommerzBillingService.createSslBillingCheckout(storeId, owner, normalized, interval);
   }
 
   const stripeClient = assertStripe();
-  const priceId = await resolveProMonthlyPriceId(stripeClient);
+  const priceId = await resolveStripePriceId(stripeClient, normalized, interval);
 
   try {
     const { customerId } = await getOrCreateStripeCustomer(storeId, owner.email, owner.name);
+    const entitlements = await resolveEntitlements(storeId);
 
     const session = await stripeClient.checkout.sessions.create({
       mode: "subscription",
@@ -167,10 +182,15 @@ const createCheckoutSession = async (
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: stripeConfig.successUrl,
       cancel_url: stripeConfig.cancelUrl,
-      metadata: { storeId, targetPlan },
+      metadata: { storeId, targetPlan: normalized, interval },
       subscription_data: {
-        metadata: { storeId, targetPlan },
+        metadata: { storeId, targetPlan: normalized, interval },
       },
+      ...(entitlements.isTrialing && !entitlements.isPaid
+        ? {}
+        : entitlements.trialUsed
+          ? {}
+          : {}),
     });
 
     if (!session.url) {
@@ -210,16 +230,22 @@ const createPortalSession = async (storeId: string, owner: { email: string; name
     throw new AppError(
       StatusCodes.BAD_REQUEST,
       stripeMessage ??
-        "Could not open billing portal. Enable the Customer Portal in your Stripe Dashboard (Settings → Billing → Customer portal).",
+        "Could not open billing portal. Enable the Customer Portal in your Stripe Dashboard.",
     );
   }
 };
 
 const cancelSubscription = async (storeId: string) => {
   const subscription = await ensureStoreSubscription(storeId);
+  const entitlements = await resolveEntitlements(storeId);
 
-  if (subscription.plan === StorePlan.FREE) {
+  if (entitlements.plan === StorePlan.FREE && !entitlements.isTrialing) {
     return { message: "You are on the free plan." };
+  }
+
+  if (entitlements.isTrialing) {
+    await downgradeToFree(storeId);
+    return { message: "Trial ended. You are now on the free plan." };
   }
 
   if (!subscription.stripeSubscriptionId) {
@@ -231,11 +257,7 @@ const cancelSubscription = async (storeId: string) => {
       return { message: "Subscription will cancel at the end of the billing period." };
     }
 
-    await prisma.subscription.update({
-      where: { storeId },
-      data: { plan: StorePlan.FREE, status: SubscriptionStatus.ACTIVE, cancelAtPeriodEnd: false },
-    });
-    await prisma.store.update({ where: { id: storeId }, data: { plan: StorePlan.FREE } });
+    await downgradeToFree(storeId);
     return { message: "Subscription cancelled." };
   }
 
@@ -250,6 +272,22 @@ const cancelSubscription = async (storeId: string) => {
   });
 
   return { message: "Subscription will cancel at the end of the billing period." };
+};
+
+const startFreeTrial = async (storeId: string) => {
+  try {
+    await startTrial(storeId);
+    const entitlements = await resolveEntitlements(storeId);
+    return {
+      message: "Your free trial has started.",
+      entitlements,
+    };
+  } catch (error) {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      error instanceof Error ? error.message : "Could not start trial",
+    );
+  }
 };
 
 const upsertPaymentMethod = async (
@@ -286,6 +324,9 @@ const upsertPaymentMethod = async (
   }
 };
 
+const parseStripeInterval = (value?: string | null): BillingInterval =>
+  value === "YEARLY" ? "YEARLY" : "MONTHLY";
+
 const syncSubscriptionFromStripe = async (stripeSubscription: Stripe.Subscription) => {
   const subData = stripeSubscription as Stripe.Subscription & {
     current_period_start?: number;
@@ -295,39 +336,39 @@ const syncSubscriptionFromStripe = async (stripeSubscription: Stripe.Subscriptio
   const storeId = stripeSubscription.metadata.storeId;
   if (!storeId) return null;
 
-  const targetPlan = (stripeSubscription.metadata.targetPlan as StorePlan) ?? StorePlan.PRO;
+  const targetPlan = normalizeStorePlan(
+    (stripeSubscription.metadata.targetPlan as StorePlan) ?? StorePlan.PRO,
+  );
+  const interval = parseStripeInterval(stripeSubscription.metadata.interval);
   const status = mapStripeStatus(stripeSubscription.status);
 
-  const plan =
-    status === SubscriptionStatus.CANCELLED || status === SubscriptionStatus.EXPIRED
-      ? StorePlan.FREE
-      : targetPlan;
+  if (status === SubscriptionStatus.CANCELLED || status === SubscriptionStatus.EXPIRED) {
+    await downgradeToFree(storeId);
+    return prisma.subscription.findUnique({ where: { storeId } });
+  }
 
   await ensureStoreSubscription(storeId);
 
-  const updated = await prisma.subscription.update({
-    where: { storeId },
-    data: {
-      plan,
-      status,
-      stripeSubscriptionId: stripeSubscription.id,
-      stripeCustomerId:
-        typeof stripeSubscription.customer === "string"
-          ? stripeSubscription.customer
-          : stripeSubscription.customer.id,
-      billingProvider: "STRIPE",
-      currentPeriodStart: subData.current_period_start
-        ? new Date(subData.current_period_start * 1000)
-        : null,
-      currentPeriodEnd: subData.current_period_end
-        ? new Date(subData.current_period_end * 1000)
-        : null,
-      cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
-    },
+  await activatePaidPlan(storeId, targetPlan, {
+    status,
+    billingProvider: "STRIPE",
+    billingInterval: interval,
+    periodStart: subData.current_period_start
+      ? new Date(subData.current_period_start * 1000)
+      : new Date(),
+    periodEnd: subData.current_period_end
+      ? new Date(subData.current_period_end * 1000)
+      : undefined,
+    stripeSubscriptionId: stripeSubscription.id,
+    stripeCustomerId:
+      typeof stripeSubscription.customer === "string"
+        ? stripeSubscription.customer
+        : stripeSubscription.customer.id,
+    cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+    clearTrial: true,
   });
 
-  await prisma.store.update({ where: { id: storeId }, data: { plan } });
-  return updated;
+  return prisma.subscription.findUnique({ where: { storeId } });
 };
 
 const resolveStoreIdFromInvoice = async (invoice: Stripe.Invoice) => {
@@ -460,9 +501,11 @@ const adminListSubscriptions = async (query: Record<string, unknown>) => {
       const paymentMethod = await prisma.paymentMethod.findFirst({
         where: { storeId: sub.storeId, isDefault: true },
       });
+      const normalized = normalizeStorePlan(sub.plan);
       return {
         ...sub,
-        mrr: PLAN_MRR[sub.plan],
+        plan: normalized,
+        mrr: PLAN_MRR[normalized],
         paymentMethod,
       };
     }),
@@ -491,22 +534,31 @@ const adminGetSubscription = async (storeId: string) => {
 
   const paymentMethods = await prisma.paymentMethod.findMany({ where: { storeId } });
   const usage = await getUsage(storeId);
+  const plan = normalizeStorePlan(subscription.plan);
 
-  return { ...subscription, paymentMethods, usage, limits: PLAN_LIMITS[subscription.plan] };
+  return {
+    ...subscription,
+    plan,
+    paymentMethods,
+    usage,
+    limits: PLAN_LIMITS[plan],
+  };
 };
 
 const adminOverridePlan = async (storeId: string, plan: StorePlan) => {
   await ensureStoreSubscription(storeId);
+  const normalized = normalizeStorePlan(plan);
   const subscription = await prisma.subscription.update({
     where: { storeId },
     data: {
-      plan,
+      plan: normalized,
       status: SubscriptionStatus.ACTIVE,
       cancelAtPeriodEnd: false,
+      trialEndsAt: null,
     },
   });
 
-  await prisma.store.update({ where: { id: storeId }, data: { plan } });
+  await prisma.store.update({ where: { id: storeId }, data: { plan: normalized } });
   return subscription;
 };
 
@@ -523,7 +575,8 @@ const adminBillingAnalytics = async () => {
 
   const planDistribution = subscriptions.reduce(
     (acc, sub) => {
-      acc[sub.plan] = (acc[sub.plan] ?? 0) + 1;
+      const key = normalizeStorePlan(sub.plan);
+      acc[key] = (acc[key] ?? 0) + 1;
       return acc;
     },
     {} as Record<string, number>,
@@ -531,7 +584,7 @@ const adminBillingAnalytics = async () => {
 
   const mrr = subscriptions.reduce((sum, sub) => {
     if (sub.status === SubscriptionStatus.ACTIVE || sub.status === SubscriptionStatus.TRIALING) {
-      return sum + PLAN_MRR[sub.plan];
+      return sum + PLAN_MRR[normalizeStorePlan(sub.plan)];
     }
     return sum;
   }, 0);
@@ -572,11 +625,11 @@ export const BillingService = {
   createCheckoutSession,
   createPortalSession,
   cancelSubscription,
+  startFreeTrial,
   handleWebhookEvent,
   adminListSubscriptions,
   adminGetSubscription,
   adminOverridePlan,
   adminBillingAnalytics,
   adminFailedPayments,
-  syncStorePlanFromSubscription,
 };
