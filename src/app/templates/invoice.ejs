@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Invoice <%= invoiceNumber %></title>
+  <style>
+    body { font-family: system-ui, sans-serif; color: #18181b; margin: 40px; }
+    h1 { margin: 0 0 4px; font-size: 24px; }
+    .muted { color: #71717a; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 24px; font-size: 14px; }
+    th, td { padding: 10px 8px; border-bottom: 1px solid #e4e4e7; text-align: left; }
+    th:last-child, td:last-child { text-align: right; }
+    .totals { margin-top: 16px; max-width: 280px; margin-left: auto; }
+    .totals div { display: flex; justify-content: space-between; padding: 4px 0; }
+    .totals .grand { font-weight: 700; font-size: 18px; border-top: 1px solid #e4e4e7; margin-top: 8px; padding-top: 8px; }
+    @media print { body { margin: 20px; } }
+  </style>
+</head>
+<body>
+  <h1><%= storeName %></h1>
+  <p class="muted">Invoice <%= invoiceNumber %> · Order <%= orderNumber %></p>
+  <p class="muted">Issued <%= new Date(issuedAt).toLocaleDateString() %></p>
+
+  <div style="display:flex;justify-content:space-between;margin-top:32px;gap:24px;flex-wrap:wrap;">
+    <div>
+      <strong>Bill to</strong><br>
+      <%= customerName %><br>
+      <%= customerEmail %><br>
+      <% if (customerPhone) { %><%= customerPhone %><br><% } %>
+    </div>
+    <div>
+      <strong>Ship to</strong><br>
+      <%= shippingAddress.line1 %><br>
+      <% if (shippingAddress.line2) { %><%= shippingAddress.line2 %><br><% } %>
+      <%= shippingAddress.city %>, <%= shippingAddress.postalCode %><br>
+      <%= shippingAddress.country %>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead>
+    <tbody>
+      <% items.forEach(function(item) { %>
+      <tr>
+        <td><%= item.name %><% if (item.variant) { %> <span class="muted">(<%= item.variant %>)</span><% } %></td>
+        <td><%= item.quantity %></td>
+        <td><%= item.unitPrice %></td>
+        <td><%= item.lineTotal %></td>
+      </tr>
+      <% }) %>
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div><span>Subtotal</span><span><%= subtotal %></span></div>
+    <div><span>Shipping</span><span><%= shipping %></span></div>
+    <% if (discount) { %><div><span>Discount</span><span>-<%= discount %></span></div><% } %>
+    <div class="grand"><span>Total</span><span><%= total %></span></div>
+  </div>
+  <p class="muted" style="margin-top:32px;">Payment: <%= paymentMethod %> · Status: <%= status %></p>
+</body>
+</html>
