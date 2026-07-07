@@ -1,7 +1,9 @@
 model Order {
   id              String      @id @default(uuid())
   storeId         String
+  customerId      String?
   orderNumber     String
+  invoiceNumber   String?
   status          OrderStatus @default(PENDING)
   paymentMethod   String      @default("COD")
   items           Json
@@ -16,16 +18,20 @@ model Order {
   couponCode      String?
   trackingNumber  String?
   trackingCarrier String?
+  statusHistory   Json        @default("[]")
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
-  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  payment Payment?
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  payment  Payment?
   platformEarning PlatformEarning?
 
   @@unique([storeId, orderNumber])
+  @@unique([storeId, invoiceNumber])
   @@index([storeId])
   @@index([status])
   @@index([customerEmail])
+  @@index([customerId])
   @@map("orders")
 }

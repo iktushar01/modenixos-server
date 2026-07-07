@@ -12,6 +12,7 @@ model Customer {
   updatedAt    DateTime @updatedAt
 
   store         Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  orders        Order[]
   reviews       Review[]
   wishlistItems WishlistItem[]
 
