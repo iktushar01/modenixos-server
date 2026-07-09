@@ -4,11 +4,7 @@
   "buildCommand": "pnpm run build",
   "functions": {
     "api/index.ts": {
-      "includeFiles": [
-        "src/generated/prisma/**",
-        "prisma/schema/**",
-        "src/app/templates/**"
-      ]
+      "includeFiles": "{src/generated/prisma/**,prisma/schema/**,src/app/templates/**}"
     }
   },
   "rewrites": [
