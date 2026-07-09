@@ -153,7 +153,8 @@
                     credentials: "include",
                     body: JSON.stringify({
                         provider: "google",
-                        callbackURL: "<%= callbackURL %>"
+                        callbackURL: "<%= callbackURL %>",
+                        disableRedirect: true
                     })
                 });
 
