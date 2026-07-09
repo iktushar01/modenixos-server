@@ -9,9 +9,9 @@ export interface ICreateStorePayload {
 export interface IUpdateStorePayload {
   brandName?: string;
   slug?: string;
-  logo?: string;
-  logoDark?: string;
-  banner?: string;
+  logo?: string | null;
+  logoDark?: string | null;
+  banner?: string | null;
   country?: string;
   currency?: string;
   description?: string;

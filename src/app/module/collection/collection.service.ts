@@ -32,10 +32,11 @@ const createCollection = async (
 };
 
 const getCollections = async (storeId: string, query: Record<string, unknown>) => {
+  const sortOrder = query.sortOrder === "desc" ? "desc" : "asc";
   const params = {
     ...query,
-    sortBy: query.sortBy ?? "sortOrder",
-    sortOrder: query.sortOrder ?? "asc",
+    sortBy: typeof query.sortBy === "string" ? query.sortBy : "sortOrder",
+    sortOrder,
   };
 
   return new QueryBuilder(prisma.collection as any, params, {

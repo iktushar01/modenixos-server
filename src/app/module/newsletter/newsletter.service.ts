@@ -400,7 +400,7 @@ const sendCampaign = async (storeId: string, campaignId: string) => {
           name: product.name,
           price: product.price,
           discountPrice: product.discountPrice,
-          image: product.images[0],
+          ...(product.images[0] ? { image: product.images[0] } : {}),
           url: `${storeFrontendBase(store.slug)}/products/${product.id}`,
         })),
       });

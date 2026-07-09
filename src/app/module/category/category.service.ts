@@ -66,10 +66,11 @@ const createCategory = async (
 };
 
 const getCategories = async (storeId: string, query: Record<string, unknown>) => {
+  const sortOrder = query.sortOrder === "desc" ? "desc" : "asc";
   const params = {
     ...query,
-    sortBy: query.sortBy ?? "sortOrder",
-    sortOrder: query.sortOrder ?? "asc",
+    sortBy: typeof query.sortBy === "string" ? query.sortBy : "sortOrder",
+    sortOrder,
   };
 
   return new QueryBuilder(prisma.category as any, params, {
@@ -123,6 +124,9 @@ const updateCategory = async (
     image = result.secure_url;
   }
 
+  const nextParentId =
+    payload.parentId !== undefined ? optionalParentId(payload.parentId) : undefined;
+
   return prisma.category.update({
     where: { id },
     data: {
@@ -130,7 +134,12 @@ const updateCategory = async (
       ...(payload.slug !== undefined ? { slug: payload.slug } : {}),
       ...(payload.name && !payload.slug ? { slug: slugify(payload.name) } : {}),
       ...(payload.parentId !== undefined
-        ? { parentId: optionalParentId(payload.parentId) }
+        ? {
+            parent:
+              nextParentId === null
+                ? { disconnect: true }
+                : { connect: { id: nextParentId } },
+          }
         : {}),
       ...(payload.image !== undefined || imageBuffer ? { image } : {}),
     },

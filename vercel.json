@@ -1,6 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "pnpm exec prisma generate",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm build",
   "builds": [
     {
       "src": "src/server.ts",

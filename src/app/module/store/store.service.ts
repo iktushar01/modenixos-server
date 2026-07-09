@@ -139,7 +139,7 @@ const updateStore = async (
     for (const item of payload.heroSlidesMeta) {
       if (item.existing) heroSlides.push(item.existing);
       else if (item.fileIndex !== undefined && uploadedUrls[item.fileIndex]) {
-        heroSlides.push(uploadedUrls[item.fileIndex]);
+        heroSlides.push(uploadedUrls[item.fileIndex] as string);
       }
     }
 

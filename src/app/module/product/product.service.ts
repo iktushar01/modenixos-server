@@ -121,10 +121,11 @@ const createProduct = async (
 };
 
 const getProducts = async (storeId: string, query: Record<string, unknown>) => {
+  const sortOrder = query.sortOrder === "desc" ? "desc" : "asc";
   const sortQuery = {
     ...query,
-    sortBy: query.sortBy ?? "sortOrder",
-    sortOrder: query.sortOrder ?? "asc",
+    sortBy: typeof query.sortBy === "string" ? query.sortBy : "sortOrder",
+    sortOrder,
   };
 
   return new QueryBuilder(prisma.product as any, sortQuery, {
@@ -203,7 +204,7 @@ const deleteProduct = async (storeId: string, id: string) => {
   await prisma.product.delete({ where: { id } });
 };
 
-const trimPublicListProduct = (product: Record<string, unknown>) => {
+const trimPublicListProduct = (product: Record<string, unknown>): Record<string, unknown> => {
   const images = Array.isArray(product.images) ? product.images.slice(0, 1) : product.images;
   const { details: _details, ...rest } = product;
   return { ...rest, images };
@@ -274,13 +275,13 @@ const getPublicProducts = async (
 
   const searchTerm = query.searchTerm ?? query.search ?? query.q;
 
-  const builderQuery = {
+  const builderQuery: Record<string, unknown> = {
     page: query.page,
     limit: query.limit,
     sortBy,
     sortOrder,
-    searchTerm: searchTerm ? String(searchTerm) : undefined,
   };
+  if (searchTerm) builderQuery.searchTerm = String(searchTerm);
 
   const result = await new QueryBuilder(prisma.product as any, builderQuery, {
     searchableFields: ["name", "description", "sku"],

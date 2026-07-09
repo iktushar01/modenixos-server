@@ -20,7 +20,7 @@ export const optionalCheckAuth = async (req: Request, _res: Response, next: Next
         });
 
         if (user && user.status !== UserStatus.SUSPENDED && user.status !== UserStatus.DELETED && !user.isDeleted) {
-          (req as Request & { user?: { userId: string; role: string } }).user = {
+          req.user = {
             userId: user.id,
             role: user.role,
           };
@@ -42,7 +42,7 @@ export const optionalCheckAuth = async (req: Request, _res: Response, next: Next
         session.user.status !== UserStatus.DELETED &&
         !session.user.isDeleted
       ) {
-        (req as Request & { user?: { userId: string; role: string } }).user = {
+        req.user = {
           userId: session.user.id,
           role: session.user.role,
         };

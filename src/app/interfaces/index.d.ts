@@ -3,10 +3,10 @@ import type { Role } from "../lib/prisma-exports";
 declare global {
   namespace Express {
     interface Request {
-      user: {
+      user?: {
         userId: string;
         role: Role;
-        email: string;
+        email?: string;
       } | null;
       storeId?: string;
       storeRole?: "OWNER" | "ADMIN" | "STAFF" | "VIEWER";
