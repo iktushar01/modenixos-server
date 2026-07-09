@@ -8,6 +8,7 @@
   "main": "src/server.ts",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "postinstall": "prisma generate",
     "start": "tsx src/server.ts",
     "build": "prisma generate && tsc && node scripts/copy-generated-prisma.js && node scripts/fix-imports.js",
     "lint": "eslint .",
