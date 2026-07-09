@@ -77,10 +77,14 @@ const revokeInvitation = catchAsync(async (req: Request, res: Response) => {
 });
 
 const acceptInvitation = catchAsync(async (req: Request, res: Response) => {
+  if (!req.user?.email) {
+    throw new AppError(StatusCodes.UNAUTHORIZED, "Authenticated user email is required");
+  }
+
   const result = await StoreMemberService.acceptInvitation(
     req.params.token as string,
-    req.user!.userId,
-    req.user!.email,
+    req.user.userId,
+    req.user.email,
   );
 
   sendResponse(res, {

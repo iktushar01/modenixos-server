@@ -121,7 +121,7 @@ const createProduct = async (
 };
 
 const getProducts = async (storeId: string, query: Record<string, unknown>) => {
-  const sortOrder = query.sortOrder === "desc" ? "desc" : "asc";
+  const sortOrder: "asc" | "desc" = query.sortOrder === "desc" ? "desc" : "asc";
   const sortQuery = {
     ...query,
     sortBy: typeof query.sortBy === "string" ? query.sortBy : "sortOrder",

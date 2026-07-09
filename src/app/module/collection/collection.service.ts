@@ -32,7 +32,7 @@ const createCollection = async (
 };
 
 const getCollections = async (storeId: string, query: Record<string, unknown>) => {
-  const sortOrder = query.sortOrder === "desc" ? "desc" : "asc";
+  const sortOrder: "asc" | "desc" = query.sortOrder === "desc" ? "desc" : "asc";
   const params = {
     ...query,
     sortBy: typeof query.sortBy === "string" ? query.sortBy : "sortOrder",
