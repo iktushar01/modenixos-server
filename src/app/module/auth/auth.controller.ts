@@ -232,17 +232,42 @@ const resetPassword = catchAsync(async (req: Request, res: Response) => {
 
 // ─── Google OAuth ─────────────────────────────────────────────────────────────
 
-const googleLogin = catchAsync((req: Request, res: Response) => {
+const googleLogin = catchAsync(async (req: Request, res: Response) => {
     const redirectPath = (req.query.redirect as string) || "/dashboard";
     const encodedRedirectPath = encodeURIComponent(redirectPath);
     const callbackURL = `${envVars.BETTER_AUTH_URL}/api/v1/auth/google/success?redirect=${encodedRedirectPath}`;
 
-    res.render("googleRedirect", {
-        callbackURL,
-        betterAuthUrl: envVars.BETTER_AUTH_URL,
-        frontendUrl: envVars.FRONTEND_URL,
-        appName: envVars.APP_NAME,
+    const response = await fetch(`${envVars.BETTER_AUTH_URL}/api/auth/sign-in/social`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            ...(req.headers.cookie ? { Cookie: req.headers.cookie } : {}),
+        },
+        body: JSON.stringify({
+            provider: "google",
+            callbackURL,
+            disableRedirect: true,
+        }),
     });
+
+    const data = (await response.json()) as { url?: string };
+
+    if (!response.ok || !data.url) {
+        return res.redirect(`${envVars.FRONTEND_URL}/login?error=oauth_failed`);
+    }
+
+    const setCookies =
+        typeof response.headers.getSetCookie === "function"
+            ? response.headers.getSetCookie()
+            : response.headers.get("set-cookie")
+              ? [response.headers.get("set-cookie") as string]
+              : [];
+
+    for (const cookie of setCookies) {
+        res.append("Set-Cookie", cookie);
+    }
+
+    return res.redirect(data.url);
 });
 
 const createOAuthExchangeCode = (payload: {
