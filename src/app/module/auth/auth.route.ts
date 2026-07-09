@@ -1,4 +1,4 @@
-import { Router } from "express";
+import express from "express";
 import { Role } from "../../lib/prisma-exports";
 import { checkAuth } from "../../middleware/checkAuth";
 import { credentialAuthLimiter } from "../../middleware/authRateLimiter";
@@ -17,7 +17,7 @@ import {
 
 
 
-const router = Router();
+const router = express.Router();
 
 // ─── Public routes ────────────────────────────────────────────────────────────
 

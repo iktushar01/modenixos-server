@@ -1,4 +1,4 @@
-import { Response } from "express";
+import type { Response } from "express";
 import { envVars } from "../../config/env";
 import { jwtUtils } from "./jwt";
 import { cookieUtils } from "./cookies";

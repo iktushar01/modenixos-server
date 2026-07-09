@@ -1,11 +1,11 @@
-import { Router } from "express";
+import express from "express";
 import { StatusCodes } from "http-status-codes";
 
 import { prisma } from "../lib/prisma";
 import { catchAsync } from "../shared/catchAsync";
 import { sendResponse } from "../shared/sendResponse";
 
-const HealthRoute = Router();
+const HealthRoute = express.Router();
 
 HealthRoute.get(
   "/",

@@ -1,4 +1,4 @@
-import { Router } from "express";
+import express from "express";
 import { Role } from "../../lib/prisma-exports";
 import { checkAuth } from "../../middleware/checkAuth";
 import { attachStoreId } from "../../middleware/attachStoreId";
@@ -7,7 +7,7 @@ import { memoryUpload } from "../../../config/multer.config";
 import { CollectionController } from "./collection.controller";
 import { createCollectionZodSchema, updateCollectionZodSchema, reorderCollectionsZodSchema } from "./collection.validation";
 
-const router = Router();
+const router = express.Router();
 const ownerAuth = [checkAuth(Role.CLIENT), attachStoreId] as const;
 
 router.post("/", ...ownerAuth, memoryUpload.single("image"), validateRequest(createCollectionZodSchema), CollectionController.create);

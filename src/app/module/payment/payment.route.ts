@@ -1,9 +1,9 @@
-import { Router } from "express";
+import express from "express";
 import { validateRequest } from "../../middleware/validateRequest";
 import { PaymentController } from "./payment.controller";
 import { createPaymentZodSchema } from "./payment.validation";
 
-const router = Router();
+const router = express.Router();
 
 router.post("/success", PaymentController.successCallback);
 router.get("/success", PaymentController.successCallback);
@@ -15,7 +15,7 @@ router.post("/ipn", PaymentController.ipnCallback);
 
 export const PaymentRoute = router;
 
-export const PublicPaymentRoute = Router({ mergeParams: true });
+export const PublicPaymentRoute = express.Router({ mergeParams: true });
 
 PublicPaymentRoute.post(
   "/create",

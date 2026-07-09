@@ -1,4 +1,4 @@
-import { NextFunction, Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { jwtUtils } from "../utils/jwt";
 import { cookieUtils } from "../utils/cookies";

@@ -1,4 +1,4 @@
-import { Router } from "express";
+import express from "express";
 import { Role } from "../../lib/prisma-exports";
 import { checkAuth } from "../../middleware/checkAuth";
 import { validateRequest } from "../../middleware/validateRequest";
@@ -6,7 +6,7 @@ import { AdminController } from "./admin.controller";
 import { suspendStoreZodSchema, adminOverridePlanZodSchema } from "./admin.validation";
 import { updateCommissionSettingsZodSchema } from "../commission/commission.validation";
 
-const router = Router();
+const router = express.Router();
 const adminAuth = checkAuth(Role.ADMIN, Role.SUPER_ADMIN);
 
 router.get("/stores", adminAuth, AdminController.getStores);

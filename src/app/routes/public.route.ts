@@ -1,4 +1,4 @@
-import { Router } from "express";
+import express from "express";
 import { validateRequest } from "../middleware/validateRequest";
 import { resolvePublicStore } from "../middleware/resolvePublicStore";
 import { ProductService } from "../module/product/product.service";
@@ -37,9 +37,9 @@ import { trackStorefrontEventSchema } from "../module/analytics/analytics.valida
 import { catchAsync } from "../shared/catchAsync";
 import { sendResponse } from "../shared/sendResponse";
 import { StatusCodes } from "http-status-codes";
-import { Request, Response } from "express";
+import type { Request, Response } from "express";
 
-const router = Router();
+const router = express.Router();
 
 router.get("/chat/config", ChatbotController.getConfig);
 
@@ -49,7 +49,7 @@ router.post(
   validateRequest(chatbotMessageSchema),
   ChatbotController.chat,
 );
-const storeRouter = Router({ mergeParams: true });
+const storeRouter = express.Router({ mergeParams: true });
 
 storeRouter.use(optionalCheckAuth);
 storeRouter.use(resolvePublicStore);

@@ -1,4 +1,4 @@
-import { Router } from "express";
+import express from "express";
 import { Role } from "../../lib/prisma-exports";
 import { checkAuth } from "../../middleware/checkAuth";
 import { attachStoreOwner } from "../../middleware/attachStoreOwner";
@@ -6,7 +6,7 @@ import { validateRequest } from "../../middleware/validateRequest";
 import { BillingController } from "./billing.controller";
 import { checkoutZodSchema } from "./billing.validation";
 
-const router = Router();
+const router = express.Router();
 const ownerBillingAuth = [checkAuth(Role.CLIENT), attachStoreOwner] as const;
 
 router.get("/plans", BillingController.getPlans);

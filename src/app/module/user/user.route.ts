@@ -1,4 +1,4 @@
-import { Router } from "express";
+import express from "express";
 import { Role } from "../../lib/prisma-exports";
 import { checkAuth } from "../../middleware/checkAuth";
 import { validateRequest } from "../../middleware/validateRequest";
@@ -7,7 +7,7 @@ import {
     createAdminZodSchema,
 } from "./user.validation";
 
-const router = Router();
+const router = express.Router();
 
 // ─── Admin provisioning ───────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-import { Router } from "express";
+import express from "express";
 import { Role } from "../../lib/prisma-exports";
 import { checkAuth } from "../../middleware/checkAuth";
 import { attachStoreId } from "../../middleware/attachStoreId";
@@ -8,7 +8,7 @@ import { StoreController } from "./store.controller";
 import { createStoreZodSchema, updateStoreZodSchema } from "./store.validation";
 import { StoreMemberRoute } from "../store-member/store-member.route";
 
-const router = Router();
+const router = express.Router();
 
 router.use(StoreMemberRoute);
 
@@ -36,5 +36,5 @@ router.patch(
 
 export const StoreRoute = router;
 
-export const PublicStoreRoute = Router();
+export const PublicStoreRoute = express.Router();
 PublicStoreRoute.get("/:slug", StoreController.getPublicStore);

@@ -11,7 +11,7 @@ import {
   setStorefrontCustomerCookie,
   clearStorefrontCustomerCookie,
 } from "../../utils/storefrontCustomerToken";
-import { Response } from "express";
+import type { Response } from "express";
 
 const sanitizeCustomer = (customer: {
   id: string;
