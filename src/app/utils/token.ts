@@ -58,7 +58,7 @@ const getRefreshTokenFromCookie = (res: Response, token: string) => {
 const getBetterAuthAccessToken = (res: Response, token: string) => {
     const maxAge = ms(envVars.ACCESS_TOKEN_EXPIRES_IN as StringValue);
     const isProd = envVars.NODE_ENV === "production";
-    cookieUtils.setCookie(res, 'better-auth.session_token', token, {
+    cookieUtils.setCookie(res, cookieUtils.getBetterAuthSessionCookieName(), token, {
         httpOnly: true,
         secure: isProd,
         // `sameSite: "none"` requires `secure`, so relax it in dev.

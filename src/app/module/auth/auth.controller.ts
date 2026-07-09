@@ -31,13 +31,6 @@ const setAuthCookies = (
     tokenUtils.getRefreshTokenFromCookie(res, tokens.refreshToken);
     if (tokens.sessionToken) {
         tokenUtils.getBetterAuthAccessToken(res, tokens.sessionToken);
-        res.cookie("better-auth.session_token", tokens.sessionToken, {
-            httpOnly: true,
-            secure: envVars.NODE_ENV === "production",
-            sameSite: "lax",
-            path: "/",
-            maxAge: ms(envVars.BETTER_AUTH_SESSION_TOKEN_EXPIRES_IN as StringValue),
-        });
     }
 };
 
@@ -45,7 +38,7 @@ const clearAuthCookies = (res: ExpressResponse) => {
     const opts = { httpOnly: true, secure: true, sameSite: "none" as const };
     cookieUtils.clearCookie(res, "accessToken", opts);
     cookieUtils.clearCookie(res, "refreshToken", opts);
-    cookieUtils.clearCookie(res, "better-auth.session_token", opts);
+    cookieUtils.clearBetterAuthSessionCookie(res, opts);
 };
 
 // ─── Register ─────────────────────────────────────────────────────────────────
@@ -141,7 +134,7 @@ const updateProfile = catchAsync(async (req: Request, res: ExpressResponse) => {
 
 const getNewTokens = catchAsync(async (req: Request, res: ExpressResponse) => {
     const oldRefreshToken = req.cookies.refreshToken;
-    const sessionToken = req.cookies["better-auth.session_token"];
+    const sessionToken = cookieUtils.getBetterAuthSessionToken(req);
 
     if (!oldRefreshToken) {
         throw new AppError(
@@ -169,7 +162,10 @@ const getNewTokens = catchAsync(async (req: Request, res: ExpressResponse) => {
 // ─── Change Password ──────────────────────────────────────────────────────────
 
 const changePassword = catchAsync(async (req: Request, res: ExpressResponse) => {
-    const sessionToken = req.cookies["better-auth.session_token"];
+    const sessionToken = cookieUtils.getBetterAuthSessionToken(req);
+    if (!sessionToken) {
+        throw new AppError(StatusCodes.UNAUTHORIZED, "No active session");
+    }
     const result = await AuthService.changePassword(req.body, sessionToken);
 
     tokenUtils.getAccessTokenFromCookie(res, result.accessToken);
@@ -186,7 +182,10 @@ const changePassword = catchAsync(async (req: Request, res: ExpressResponse) => 
 // ─── Logout ───────────────────────────────────────────────────────────────────
 
 const logoutUser = catchAsync(async (req: Request, res: ExpressResponse) => {
-    const sessionToken = req.cookies["better-auth.session_token"];
+    const sessionToken = cookieUtils.getBetterAuthSessionToken(req);
+    if (!sessionToken) {
+        throw new AppError(StatusCodes.UNAUTHORIZED, "No active session");
+    }
     await AuthService.logoutUser(sessionToken);
 
     clearAuthCookies(res);
@@ -303,14 +302,16 @@ const createOAuthExchangeCode = (payload: {
 
 const googleLoginSuccess = catchAsync(async (req: Request, res: ExpressResponse) => {
     const redirectPath = (req.query.redirect as string) || "/dashboard";
-    const sessionToken = req.cookies["better-auth.session_token"];
+    const sessionToken = cookieUtils.getBetterAuthSessionToken(req);
 
     if (!sessionToken) {
         return res.redirect(`${envVars.FRONTEND_URL}/login?error=oauth_failed`);
     }
 
     const session = await auth.api.getSession({
-        headers: { Cookie: `better-auth.session_token=${sessionToken}` },
+        headers: req.headers.cookie
+            ? new Headers({ cookie: req.headers.cookie })
+            : new Headers(),
     });
 
     if (!session?.user) {

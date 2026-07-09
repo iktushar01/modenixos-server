@@ -40,7 +40,7 @@ export const checkAuth = (...authRoles: Role[]) => async (req: Request, res: Res
         }
 
         //Session Token Verification (fallback when JWT is missing/invalid)
-        const sessionToken = cookieUtils.getCookie(req, "better-auth.session_token");
+        const sessionToken = cookieUtils.getBetterAuthSessionToken(req);
 
         if (sessionToken) {
             const sessionExists = await prisma.session.findFirst({

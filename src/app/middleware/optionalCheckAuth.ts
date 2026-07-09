@@ -29,7 +29,7 @@ export const optionalCheckAuth = async (req: Request, _res: Response, next: Next
       }
     }
 
-    const sessionToken = cookieUtils.getCookie(req, "better-auth.session_token");
+    const sessionToken = cookieUtils.getBetterAuthSessionToken(req);
     if (sessionToken) {
       const session = await prisma.session.findFirst({
         where: { token: sessionToken, expiresAt: { gt: new Date() } },
