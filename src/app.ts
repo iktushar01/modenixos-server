@@ -16,6 +16,7 @@ import { BillingController } from "./app/module/billing/billing.controller";
 
 const app: Application = express();
 
+app.set("trust proxy", 1);
 app.set("view engine", "ejs");
 app.set("views", path.resolve(process.cwd(), `src/app/templates`));
 
@@ -31,6 +32,7 @@ const authRateLimiter = betterAuthLimiter;
 app.use(helmet());
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
+app.use(cookieParser());
 
 app.use("/api/auth", authRateLimiter, toNodeHandler(auth));
 app.post(
@@ -39,7 +41,6 @@ app.post(
   BillingController.webhook,
 );
 app.use(express.json());
-app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 
 app.get("/", (_req: Request, res: Response) => {

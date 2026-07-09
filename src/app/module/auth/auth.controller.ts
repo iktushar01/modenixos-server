@@ -12,12 +12,40 @@ import { AuthService } from "./auth.service";
 import ms, { StringValue } from "ms";
 
 type OAuthFetchResponse = {
-    json: () => Promise<{ url?: string }>;
+    json: () => Promise<{ url?: string; message?: string; error?: string }>;
+    text: () => Promise<string>;
     ok: boolean;
+    status: number;
     headers: {
         getSetCookie?: () => string[];
         get: (name: string) => string | null;
     };
+};
+
+const getPublicBackendUrl = (req: Request) => {
+    const forwardedProto = req.headers["x-forwarded-proto"];
+    const proto = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto;
+    const forwardedHost = req.headers["x-forwarded-host"];
+    const host =
+        (Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost) ??
+        req.headers.host;
+
+    if (host) {
+        return `${proto ?? req.protocol}://${host}`;
+    }
+
+    return envVars.BETTER_AUTH_URL;
+};
+
+const readOAuthResponseBody = async (response: OAuthFetchResponse) => {
+    try {
+        return await response.json();
+    } catch {
+        const text = await response.text().catch(() => "");
+        return {
+            error: text.slice(0, 200),
+        };
+    }
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -243,24 +271,36 @@ const resetPassword = catchAsync(async (req: Request, res: ExpressResponse) => {
 const googleLogin = catchAsync(async (req: Request, res: ExpressResponse) => {
     const redirectPath = (req.query.redirect as string) || "/dashboard";
     const encodedRedirectPath = encodeURIComponent(redirectPath);
-    const callbackURL = `${envVars.BETTER_AUTH_URL}/api/v1/auth/google/success?redirect=${encodedRedirectPath}`;
+    const backendUrl = getPublicBackendUrl(req).replace(/\/$/, "");
+    const callbackURL = `${backendUrl}/api/v1/auth/google/success?redirect=${encodedRedirectPath}`;
+    const errorCallbackURL = `${backendUrl}/api/v1/auth/oauth/error`;
 
-    const response = (await fetch(`${envVars.BETTER_AUTH_URL}/api/auth/sign-in/social`, {
+    const response = (await fetch(`${backendUrl}/api/auth/sign-in/social`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
+            Origin: backendUrl,
+            Referer: `${backendUrl}/api/v1/auth/login/google`,
             ...(req.headers.cookie ? { Cookie: req.headers.cookie } : {}),
         },
         body: JSON.stringify({
             provider: "google",
             callbackURL,
+            errorCallbackURL,
             disableRedirect: true,
         }),
     })) as unknown as OAuthFetchResponse;
 
-    const data = await response.json();
+    const data = await readOAuthResponseBody(response);
 
     if (!response.ok || !data.url) {
+        console.error("[oauth] Google sign-in URL creation failed", {
+            status: response.status,
+            error: data.error,
+            message: data.message,
+            backendUrl,
+            callbackURL,
+        });
         return res.redirect(`${envVars.FRONTEND_URL}/login?error=oauth_failed`);
     }
 
