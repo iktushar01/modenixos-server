@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+import type { Request, Response as ExpressResponse } from "express";
 import { StatusCodes } from "http-status-codes";
 import { envVars } from "../../../config/env";
 import { catchAsync } from "../../shared/catchAsync";
@@ -15,7 +15,7 @@ import ms, { StringValue } from "ms";
 
 /** Writes all three auth cookies in one call. */
 const setAuthCookies = (
-    res: Response,
+    res: ExpressResponse,
     tokens: { accessToken: string; refreshToken: string; sessionToken?: string } ,
 ) => {
     tokenUtils.getAccessTokenFromCookie(res, tokens.accessToken);
@@ -32,7 +32,7 @@ const setAuthCookies = (
     }
 };
 
-const clearAuthCookies = (res: Response) => {
+const clearAuthCookies = (res: ExpressResponse) => {
     const opts = { httpOnly: true, secure: true, sameSite: "none" as const };
     cookieUtils.clearCookie(res, "accessToken", opts);
     cookieUtils.clearCookie(res, "refreshToken", opts);
@@ -41,7 +41,7 @@ const clearAuthCookies = (res: Response) => {
 
 // ─── Register ─────────────────────────────────────────────────────────────────
 
-const registerClient = catchAsync(async (req: Request, res: Response) => {
+const registerClient = catchAsync(async (req: Request, res: ExpressResponse) => {
     const fileBuffer = (req as any).file?.buffer;
     const fileName = (req as any).file?.originalname;
     const result = await AuthService.registerClient(req.body, fileBuffer, fileName);
@@ -68,7 +68,7 @@ const registerClient = catchAsync(async (req: Request, res: Response) => {
 
 // ─── Login ────────────────────────────────────────────────────────────────────
 
-const loginUser = catchAsync(async (req: Request, res: Response) => {
+const loginUser = catchAsync(async (req: Request, res: ExpressResponse) => {
     const result = await AuthService.loginUser(req.body);
 
     setAuthCookies(res, {
@@ -92,7 +92,7 @@ const loginUser = catchAsync(async (req: Request, res: Response) => {
 
 // ─── Get Me ───────────────────────────────────────────────────────────────────
 
-const getMe = catchAsync(async (req: Request, res: Response) => {
+const getMe = catchAsync(async (req: Request, res: ExpressResponse) => {
     const result = await AuthService.getMe(req.user as IRequestUser);
 
     sendResponse(res, {
@@ -103,7 +103,7 @@ const getMe = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
-const updateProfile = catchAsync(async (req: Request, res: Response) => {
+const updateProfile = catchAsync(async (req: Request, res: ExpressResponse) => {
     const user = req.user as IRequestUser;
     const fileBuffer = (req as any).file?.buffer;
     const fileName = (req as any).file?.originalname;
@@ -130,7 +130,7 @@ const updateProfile = catchAsync(async (req: Request, res: Response) => {
 
 // ─── Refresh Tokens ───────────────────────────────────────────────────────────
 
-const getNewTokens = catchAsync(async (req: Request, res: Response) => {
+const getNewTokens = catchAsync(async (req: Request, res: ExpressResponse) => {
     const oldRefreshToken = req.cookies.refreshToken;
     const sessionToken = req.cookies["better-auth.session_token"];
 
@@ -159,7 +159,7 @@ const getNewTokens = catchAsync(async (req: Request, res: Response) => {
 
 // ─── Change Password ──────────────────────────────────────────────────────────
 
-const changePassword = catchAsync(async (req: Request, res: Response) => {
+const changePassword = catchAsync(async (req: Request, res: ExpressResponse) => {
     const sessionToken = req.cookies["better-auth.session_token"];
     const result = await AuthService.changePassword(req.body, sessionToken);
 
@@ -176,7 +176,7 @@ const changePassword = catchAsync(async (req: Request, res: Response) => {
 
 // ─── Logout ───────────────────────────────────────────────────────────────────
 
-const logoutUser = catchAsync(async (req: Request, res: Response) => {
+const logoutUser = catchAsync(async (req: Request, res: ExpressResponse) => {
     const sessionToken = req.cookies["better-auth.session_token"];
     await AuthService.logoutUser(sessionToken);
 
@@ -192,7 +192,7 @@ const logoutUser = catchAsync(async (req: Request, res: Response) => {
 
 // ─── Email Verification ───────────────────────────────────────────────────────
 
-const verifyEmail = catchAsync(async (req: Request, res: Response) => {
+const verifyEmail = catchAsync(async (req: Request, res: ExpressResponse) => {
     const { email, otp } = req.body;
     await AuthService.verifyEmail(email, otp);
 
@@ -206,7 +206,7 @@ const verifyEmail = catchAsync(async (req: Request, res: Response) => {
 
 // ─── Forget / Reset Password ──────────────────────────────────────────────────
 
-const forgetPassword = catchAsync(async (req: Request, res: Response) => {
+const forgetPassword = catchAsync(async (req: Request, res: ExpressResponse) => {
     await AuthService.forgetPassword(req.body.email);
 
     sendResponse(res, {
@@ -218,7 +218,7 @@ const forgetPassword = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
-const resetPassword = catchAsync(async (req: Request, res: Response) => {
+const resetPassword = catchAsync(async (req: Request, res: ExpressResponse) => {
     const { email, otp, newPassword } = req.body;
     await AuthService.resetPassword(email, otp, newPassword);
 
@@ -232,7 +232,7 @@ const resetPassword = catchAsync(async (req: Request, res: Response) => {
 
 // ─── Google OAuth ─────────────────────────────────────────────────────────────
 
-const googleLogin = catchAsync(async (req: Request, res: Response) => {
+const googleLogin = catchAsync(async (req: Request, res: ExpressResponse) => {
     const redirectPath = (req.query.redirect as string) || "/dashboard";
     const encodedRedirectPath = encodeURIComponent(redirectPath);
     const callbackURL = `${envVars.BETTER_AUTH_URL}/api/v1/auth/google/success?redirect=${encodedRedirectPath}`;
@@ -292,7 +292,7 @@ const createOAuthExchangeCode = (payload: {
         image: payload.image ?? undefined,
     });
 
-const googleLoginSuccess = catchAsync(async (req: Request, res: Response) => {
+const googleLoginSuccess = catchAsync(async (req: Request, res: ExpressResponse) => {
     const redirectPath = (req.query.redirect as string) || "/dashboard";
     const sessionToken = req.cookies["better-auth.session_token"];
 
@@ -321,12 +321,12 @@ const googleLoginSuccess = catchAsync(async (req: Request, res: Response) => {
     );
 });
 
-const handleOAuthError = catchAsync((req: Request, res: Response) => {
+const handleOAuthError = catchAsync((req: Request, res: ExpressResponse) => {
     const error = (req.query.error as string) || "oauth_failed";
     res.redirect(`${envVars.FRONTEND_URL}/login?error=${error}`);
 });
 
-const exchangeOAuthCode = catchAsync(async (req: Request, res: Response) => {
+const exchangeOAuthCode = catchAsync(async (req: Request, res: ExpressResponse) => {
     const code = req.query.code as string | undefined;
 
     if (!code) {
