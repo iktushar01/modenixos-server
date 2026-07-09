@@ -9,6 +9,11 @@ import { sendEmail } from "../utils/email";
 
 const isProduction = envVars.NODE_ENV === "production";
 const secureCookies = isProduction;
+const isGoogleOAuthConfigured = Boolean(
+    envVars.GOOGLE_CLIENT_ID &&
+    envVars.GOOGLE_CLIENT_SECRET &&
+    envVars.GOOGLE_CALLBACK_URL,
+);
 
 export const auth = betterAuth({
     baseURL : envVars.BETTER_AUTH_URL,
@@ -20,7 +25,7 @@ export const auth = betterAuth({
         enabled: true,
         requireEmailVerification: true,
     },
-    socialProviders: {
+    socialProviders: isGoogleOAuthConfigured ? {
         google: {
             clientId: envVars.GOOGLE_CLIENT_ID,
             clientSecret: envVars.GOOGLE_CLIENT_SECRET,
@@ -42,8 +47,7 @@ export const auth = betterAuth({
                 }
             }
         }
-        
-    },
+    } : {},
 
 
     
