@@ -5,7 +5,6 @@
   "license": "ISC",
   "author": "",
   "type": "module",
-  "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "postinstall": "prisma generate",
