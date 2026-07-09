@@ -39,7 +39,6 @@ interface EnvConfig {
 }
 
 const requiredEnvVariables = [
-    "PORT",
     "NODE_ENV",
     "BETTER_AUTH_URL",
     "FRONTEND_URL",
@@ -79,7 +78,7 @@ requiredEnvVariables.forEach((variable) => {
 
 const loadEnvVariables = (): EnvConfig => {
     return {
-        PORT: process.env.PORT as string,
+        PORT: process.env.PORT ?? "5000",
         NODE_ENV: process.env.NODE_ENV as string,
         BETTER_AUTH_URL: process.env.BETTER_AUTH_URL as string,
         FRONTEND_URL: process.env.FRONTEND_URL as string,
