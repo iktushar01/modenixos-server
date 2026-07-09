@@ -1,13 +1,13 @@
 {
   "version": 2,
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm build",
   "builds": [
     {
-      "src": "src/server.ts",
+      "src": "dist/server.js",
       "use": "@vercel/node",
       "config": {
         "includeFiles": [
+          "dist/**",
           "src/generated/prisma/**",
           "prisma/schema/**",
           "src/app/templates/**"
@@ -18,7 +18,7 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "src/server.ts"
+      "dest": "dist/server.js"
     }
   ]
 }
