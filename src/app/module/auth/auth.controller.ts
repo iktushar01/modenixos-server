@@ -11,6 +11,15 @@ import { IRequestUser } from "./auth.interface";
 import { AuthService } from "./auth.service";
 import ms, { StringValue } from "ms";
 
+type OAuthFetchResponse = {
+    json: () => Promise<{ url?: string }>;
+    ok: boolean;
+    headers: {
+        getSetCookie?: () => string[];
+        get: (name: string) => string | null;
+    };
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Writes all three auth cookies in one call. */
@@ -237,7 +246,7 @@ const googleLogin = catchAsync(async (req: Request, res: ExpressResponse) => {
     const encodedRedirectPath = encodeURIComponent(redirectPath);
     const callbackURL = `${envVars.BETTER_AUTH_URL}/api/v1/auth/google/success?redirect=${encodedRedirectPath}`;
 
-    const response = await fetch(`${envVars.BETTER_AUTH_URL}/api/auth/sign-in/social`, {
+    const response = (await fetch(`${envVars.BETTER_AUTH_URL}/api/auth/sign-in/social`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -248,9 +257,9 @@ const googleLogin = catchAsync(async (req: Request, res: ExpressResponse) => {
             callbackURL,
             disableRedirect: true,
         }),
-    });
+    })) as unknown as OAuthFetchResponse;
 
-    const data = (await response.json()) as { url?: string };
+    const data = await response.json();
 
     if (!response.ok || !data.url) {
         return res.redirect(`${envVars.FRONTEND_URL}/login?error=oauth_failed`);
