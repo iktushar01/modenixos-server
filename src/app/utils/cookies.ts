@@ -32,7 +32,7 @@ const getBetterAuthSessionToken = (req: Request): string | undefined => {
     }
 
     const fallback = Object.entries(req.cookies).find(([name]) =>
-        name.endsWith("better-auth.session_token"),
+        name.endsWith("better-auth.session_token") || name === "__Secure-better-auth.session_token",
     );
 
     return fallback?.[1];
