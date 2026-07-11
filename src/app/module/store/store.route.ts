@@ -28,6 +28,7 @@ router.patch(
     { name: "logo", maxCount: 1 },
     { name: "logoDark", maxCount: 1 },
     { name: "banner", maxCount: 1 },
+    { name: "favicon", maxCount: 1 },
     { name: "heroSlides", maxCount: 20 },
   ]),
   validateRequest(updateStoreZodSchema),

@@ -62,6 +62,8 @@ const updateStore = async (
   logoDarkName?: string,
   bannerBuffer?: Buffer,
   bannerName?: string,
+  faviconBuffer?: Buffer,
+  faviconName?: string,
   heroSlideFiles: Array<{ buffer: Buffer; originalname: string }> = [],
 ) => {
   const store = await prisma.store.findFirst({
@@ -99,6 +101,12 @@ const updateStore = async (
     banner = result.secure_url;
   }
 
+  let faviconUrl: string | null | undefined = undefined;
+  if (faviconBuffer && faviconName) {
+    const result = await uploadFileToCloudinary(faviconBuffer, faviconName);
+    faviconUrl = result.secure_url;
+  }
+
   const existingTheme = (store.theme ?? {}) as Record<string, unknown>;
   let nextTheme: Record<string, unknown> | undefined =
     payload.theme !== undefined
@@ -123,6 +131,16 @@ const updateStore = async (
             : {}),
         }
       : undefined;
+
+  if (faviconUrl !== undefined) {
+    nextTheme = {
+      ...(nextTheme ?? existingTheme),
+      branding: {
+        ...(((nextTheme ?? existingTheme).branding as Record<string, unknown>) ?? {}),
+        favicon: faviconUrl,
+      },
+    };
+  }
 
   if (payload.heroSlidesMeta !== undefined) {
     if (heroSlideFiles.length === 0 && payload.heroSlidesMeta.some((m) => m.fileIndex !== undefined)) {
