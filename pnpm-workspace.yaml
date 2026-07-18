@@ -1,8 +1,14 @@
 packages:
-  - "."
+  - .
 
 allowBuilds:
   '@prisma/engines': false
   core-js: false
   esbuild: false
   prisma: false
+
+ignoredBuiltDependencies:
+  - '@prisma/engines'
+  - core-js
+  - esbuild
+  - prisma

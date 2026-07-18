@@ -5,10 +5,12 @@
   "license": "ISC",
   "author": "",
   "type": "module",
-   "packageManager": "pnpm@10.12.4",
+  "packageManager": "pnpm@11.13.1",
+  "prisma": {
+    "schema": "prisma/schema/schema.prisma"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "postinstall": "prisma generate",
     "start": "node dist/server.js",
     "build": "prisma generate && tsc && node scripts/copy-generated-prisma.js && node scripts/fix-imports.js",
     "vercel-build": "pnpm run build",
