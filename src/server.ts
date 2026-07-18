@@ -15,7 +15,10 @@ const bootstrap = async () => {
     // Use process.env.PORT set by Railway, fallback to envVars or 5000
     const port = process.env.PORT || envVars.PORT || 5000;
 
-    await app.listen(port);
+    await app.listen({
+  port: Number(port),
+  host: "0.0.0.0",
+});
     console.log(
       `✅ Server running on ${process.env.NODE_ENV || envVars.NODE_ENV} mode at http://localhost:${port}`
     );
@@ -48,8 +51,9 @@ const bootstrap = async () => {
     }
 
     startBillingLifecycleScheduler();
-  } catch (error: any) {
-    if (error.code === "EADDRINUSE") {
+  } catch (error: unknown) {
+    const maybeErr = error as { code?: string };
+    if (maybeErr.code === "EADDRINUSE") {
       console.error(
         `❌ Port ${process.env.PORT || envVars.PORT} is already in use.`
       );
